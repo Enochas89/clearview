@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from './supabaseClient';
+import logo from './assets/logo.png'; // Import the logo
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -28,10 +29,13 @@ export default function Auth() {
 
   return (
     <div className="app-shell">
-      <div className="app__empty-state">
-        <h2>Welcome to Clear View</h2>
-        <p>Sign in or create an account to get started.</p>
-        <form onSubmit={handleLogin} className="modal__form">
+      <div className="auth-container"> {/* New container for styling */}
+        <div className="auth-header">
+          <img src={logo} alt="Clear View Logo" className="auth-logo" />
+          <h2 className="sidebar__title">Clear View</h2> {/* Reusing sidebar__title for gradient */}
+          <p className="sidebar__subtitle">Built by Project Managers for Project Managers</p> {/* Reusing subtitle */}
+        </div>
+        <form onSubmit={handleLogin} className="auth-form"> {/* New class for form styling */}
           <label htmlFor="email">Email</label>
           <input
             id="email"
@@ -39,6 +43,7 @@ export default function Auth() {
             placeholder="Your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="auth-input"
           />
           <label htmlFor="password">Password</label>
           <input
@@ -47,8 +52,9 @@ export default function Auth() {
             placeholder="Your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            className="auth-input"
           />
-          <div className="modal__actions">
+          <div className="auth-actions">
             <button type="submit" className="modal__primary" disabled={loading}>
               {loading ? 'Loading' : 'Login'}
             </button>
