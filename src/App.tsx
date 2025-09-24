@@ -52,7 +52,13 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session) {
+      setProjects([]);
+      setTasks([]);
+      setSelectedProjectId(null);
+      setLoading(false); // Important: set loading to false if no session
+      return;
+    }
 
     const fetchProjectsAndTasks = async () => {
       setLoading(true);
@@ -74,6 +80,8 @@ function App() {
         setTasks(tasksData as Task[]);
         if (projectsData && projectsData.length > 0) {
           setSelectedProjectId(projectsData[0].id);
+        } else {
+          setSelectedProjectId(null); // No projects, so no selected project
         }
       } catch (err: any) {
         console.error("Error fetching data:", err);
