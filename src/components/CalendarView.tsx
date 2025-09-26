@@ -95,12 +95,25 @@ const CalendarView = ({ days, onAddFile, onRemoveFile }: CalendarViewProps) => {
     setPendingUpload(null);
   };
 
-  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
-      return;
-    }
-    event.currentTarget.scrollLeft += event.deltaY;
-    event.preventDefault();
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    const handleWheel = (event: globalThis.WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+        return;
+      }
+      event.preventDefault();
+      scroller.scrollLeft += event.deltaY;
+    };
+
+    scroller.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      scroller.removeEventListener("wheel", handleWheel);
+    };
   }, []);
 
   return (
@@ -111,7 +124,7 @@ const CalendarView = ({ days, onAddFile, onRemoveFile }: CalendarViewProps) => {
           <p>Upload references, briefs, and assets per day. Scroll to explore the schedule.</p>
         </div>
       </div>
-      <div className="calendar__scroller" onWheel={handleWheel}>
+      <div className="calendar__scroller" ref={scrollerRef}>
         {days.map((day, index) => (
           <article key={day.date} className="calendar__tile">
             <header className="calendar__tile-header">

@@ -156,12 +156,23 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
     [timeline.totalDays, timelineWidth],
   );
 
-  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || !viewportRef.current) {
-      return;
-    }
-    viewportRef.current.scrollLeft += event.deltaY;
-    event.preventDefault();
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const handleWheel = (event: globalThis.WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+        return;
+      }
+      event.preventDefault();
+      viewport.scrollLeft += event.deltaY;
+    };
+
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      viewport.removeEventListener("wheel", handleWheel);
+    };
   }, []);
 
   const activeProjectCount = useMemo(() => {
@@ -243,7 +254,7 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
 
       <div className="gantt__viewport" ref={viewportRef}>
         <div className="gantt__table" style={tableVars}>
-          <div className="gantt__table-header" style={gridColumnsStyle} onWheel={handleWheel}>
+          <div className="gantt__table-header" style={gridColumnsStyle}>
             <div className="gantt__head-label">Workstream</div>
             {timeline.days.map((date) => (
               <div key={date.toISOString()} className="gantt__head-day">
@@ -251,7 +262,7 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
               </div>
             ))}
           </div>
-          <div className="gantt__table-body" onWheel={handleWheel}>
+          <div className="gantt__table-body">
             {hasRows ? (
               rows.map(({ task, startOffset, duration, project }) => (
                 <div key={task.id} className="gantt__table-row" style={gridColumnsStyle}>

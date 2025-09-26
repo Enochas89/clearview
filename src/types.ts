@@ -10,6 +10,7 @@
   cost: string;
   address: string;
   projectManager: string;
+  userId: string;
 };
 
 export type TaskStatus = "todo" | "in-progress" | "done";
