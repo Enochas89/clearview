@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useCallback, useId, useState, type WheelEvent } from "react";
+import { ChangeEvent, FormEvent, useCallback, useId, useState, type WheelEvent, useRef, useEffect } from "react";
 import { DayEntry } from "../types";
 
 type CalendarViewProps = {

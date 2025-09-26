@@ -1,4 +1,4 @@
-﻿import { CSSProperties, FormEvent, useCallback, useMemo, useRef, useState, type WheelEvent } from "react";
+﻿import { CSSProperties, FormEvent, useCallback, useMemo, useRef, useState, type WheelEvent, useEffect } from "react";
 import { Project, Task, TaskStatus } from "../types";
 
 type TaskFormState = {
