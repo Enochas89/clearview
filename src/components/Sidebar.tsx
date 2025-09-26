@@ -113,7 +113,7 @@ const Sidebar = ({
         <div className="sidebar__section-header">
           <div>
             <h2>Projects</h2>
-            <p className="sidebar__section-subtitle">Stay aligned on every initiative.</p>
+            <p className="sidebar__section-subtitle">Stay aligned on every initiative.If it touches the project own the outcome!</p>
           </div>
           <div className="sidebar__section-actions">
             <span className="sidebar__count">{projects.length}</span>
