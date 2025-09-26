@@ -8,17 +8,24 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false); // New state to toggle between login and signup
   const [error, setError] = useState<string | null>(null); // New state for displaying errors
+  const [message, setMessage] = useState<string | null>(null); // New state for displaying success messages
 
   const handleAuth = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null); // Clear previous errors
+    setMessage(null); // Clear previous messages
 
     setLoading(true);
     let authError = null;
 
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({ email, password });
       authError = error;
+      if (!error && data.user) {
+        setMessage('Please check your email to confirm your account.');
+        setEmail(''); // Clear email field
+        setPassword(''); // Clear password field
+      }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       authError = error;
@@ -59,7 +66,8 @@ export default function Auth() {
             className="auth-input"
             required
           />
-          {error && <p className="auth-error-message">{error}</p>} {/* Display error message */}
+          {error && <p className="auth-error-message">{error}</p>}
+          {message && <p className="auth-success-message">{message}</p>} {/* Display success message */}
           <div className="auth-actions">
             <button type="submit" className="modal__primary" disabled={loading}>
               {loading ? 'Loading' : (isSignUp ? 'Sign Up' : 'Login')}
@@ -70,6 +78,9 @@ export default function Auth() {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError(null); // Clear errors when switching view
+                setMessage(null); // Clear messages when switching view
+                setEmail(''); // Clear fields
+                setPassword(''); // Clear fields
               }}
               disabled={loading}
             >
