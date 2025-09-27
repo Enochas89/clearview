@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CalendarView from "./components/CalendarView";
 import GanttChart from "./components/GanttChart";
 import Sidebar from "./components/Sidebar";
+import AccountBanner from "./components/AccountBanner";
 import { DayEntry, Project, Task } from "./types";
 import "./App.css";
 import { supabase } from './supabaseClient';
@@ -105,6 +106,46 @@ function App() {
     } catch (err: any) {
       console.error("Error signing out:", err);
       setError(err.message || "Failed to sign out.");
+    }
+  };
+
+  const handleUpdateProfile = async (input: { email: string; fullName: string }) => {
+    if (!session) {
+      throw new Error("You must be signed in to update your profile.");
+    }
+
+    const trimmedEmail = input.email.trim();
+    const trimmedName = input.fullName.trim();
+
+    if (!trimmedEmail) {
+      throw new Error("Email is required.");
+    }
+
+    if (!trimmedName) {
+      throw new Error("Name is required.");
+    }
+
+    const updatePayload: {
+      email?: string;
+      data?: Record<string, unknown>;
+    } = {};
+
+    if (trimmedEmail !== session.user.email) {
+      updatePayload.email = trimmedEmail;
+    }
+
+    updatePayload.data = {
+      ...(session.user.user_metadata ?? {}),
+      full_name: trimmedName,
+    };
+
+    const { data, error } = await supabase.auth.updateUser(updatePayload);
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (data?.user) {
+      setSession((prev) => (prev ? { ...prev, user: data.user } : prev));
     }
   };
 
@@ -359,9 +400,13 @@ function App() {
           onCreateProject={handleCreateProject}
           onUpdateProject={handleUpdateProject}
           onDeleteProject={handleDeleteProject}
-          onSignOut={handleSignOut}
         />
         <main className="app__main">
+          <AccountBanner
+            user={session?.user ?? null}
+            onUpdateProfile={handleUpdateProfile}
+            onSignOut={handleSignOut}
+          />
           {projects.length > 0 ? (
             <>
               <CalendarView days={visibleDays} onAddFile={handleAddFile} onRemoveFile={handleRemoveFile} />

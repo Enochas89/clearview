@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Project } from "../types";
-import logo from '../assets/logo.png';
+import logo from "../assets/logo.png";
 
 type ProjectFormState = Omit<Project, "id" | "createdAt">;
 
@@ -11,7 +11,6 @@ type SidebarProps = {
   onCreateProject: (input: ProjectFormState) => void;
   onUpdateProject: (projectId: string, input: ProjectFormState) => void;
   onDeleteProject: (projectId: string) => void;
-  onSignOut: () => void;
 };
 
 const emptyProjectForm: ProjectFormState = {
@@ -33,7 +32,6 @@ const Sidebar = ({
   onCreateProject,
   onUpdateProject,
   onDeleteProject,
-  onSignOut,
 }: SidebarProps) => {
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -113,7 +111,7 @@ const Sidebar = ({
         <div className="sidebar__section-header">
           <div>
             <h2>Projects</h2>
-            <p className="sidebar__section-subtitle">Stay aligned on every initiative.If it touches the project own the outcome!</p>
+            <p className="sidebar__section-subtitle">Stay aligned on every initiative. If it touches the project own the outcome!</p>
           </div>
           <div className="sidebar__section-actions">
             <span className="sidebar__count">{projects.length}</span>
@@ -126,11 +124,7 @@ const Sidebar = ({
           {projects.map((project) => (
             <div
               key={project.id}
-              className={
-                project.id === selectedProjectId
-                  ? "sidebar__project sidebar__project--active"
-                  : "sidebar__project"
-              }
+              className={`sidebar__project${selectedProjectId === project.id ? " sidebar__project--active" : ""}`}
             >
               <button
                 type="button"
@@ -264,11 +258,6 @@ const Sidebar = ({
           </form>
         )}
       </section>
-      <div className="sidebar__section">
-        <button type="button" className="sidebar__action" onClick={onSignOut}>
-          Sign Out
-        </button>
-      </div>
     </aside>
   );
 };
