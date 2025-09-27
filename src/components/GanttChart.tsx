@@ -57,7 +57,7 @@ const DependencyArrows = ({ rows, tasks, timeline }) => {
     const positions = new Map();
     rows.forEach((row, index) => {
       positions.set(row.task.id, {
-        y: index * ROW_HEIGHT + ROW_HEIGHT / 2,
+        y: index * ROW_HEIGHT + ROW_HEIGHT / 3,
         startOffset: row.startOffset,
         duration: row.duration,
       });
@@ -103,12 +103,12 @@ const DependencyArrows = ({ rows, tasks, timeline }) => {
         <marker
           id="arrowhead"
           markerWidth="10"
-          markerHeight="7"
-          refX="0"
-          refY="3.5"
+          markerHeight="10"
+          refX="10"
+          refY="5"
           orient="auto"
         >
-          <polygon points="0 0, 10 3.5, 0 7" />
+          <polygon points="0 0, 10 5, 0 10" />
         </marker>
       </defs>
       {arrows.map(arrow => (
@@ -116,7 +116,7 @@ const DependencyArrows = ({ rows, tasks, timeline }) => {
           key={arrow.id}
           d={arrow.path}
           fill="none"
-          stroke="#ff4e4e"
+          stroke="#5c5c5c"
           strokeWidth="2"
           markerEnd="url(#arrowhead)"
         />
