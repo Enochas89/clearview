@@ -232,6 +232,7 @@ function App() {
     startDate: string;
     dueDate: string;
     status: string;
+    dependencies: string[];
   }) => {
     const task: Task = {
       id: createId("task"),
@@ -241,6 +242,7 @@ function App() {
       startDate: input.startDate,
       dueDate: input.dueDate,
       status: input.status as Task["status"],
+      dependencies: input.dependencies,
     };
     try {
       const { data, error } = await supabase.from('tasks').insert([task]).select();
@@ -254,14 +256,7 @@ function App() {
 
   const handleUpdateTask = async (
     taskId: string,
-    input: {
-      projectId: string;
-      name: string;
-      description: string;
-      startDate: string;
-      dueDate: string;
-      status: string;
-    },
+    input: Partial<Task>,
   ) => {
     try {
       const { data, error } = await supabase
@@ -273,14 +268,7 @@ function App() {
       setTasks((prev) =>
         prev.map((task) =>
           task.id === taskId
-            ? { ...task,
-                projectId: input.projectId,
-                name: input.name,
-                description: input.description,
-                startDate: input.startDate,
-                dueDate: input.dueDate,
-                status: input.status as Task["status"],
-              }
+            ? { ...task, ...data[0] }
             : task,
         ),
       );

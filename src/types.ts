@@ -23,6 +23,7 @@ export type Task = {
   startDate: string;
   dueDate: string;
   status: TaskStatus;
+  dependencies: string[];
 };
 
 export type DayFile = {

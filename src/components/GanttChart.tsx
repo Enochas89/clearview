@@ -1,4 +1,4 @@
-﻿import { CSSProperties, FormEvent, useCallback, useMemo, useRef, useState, type WheelEvent, useEffect } from "react";
+import { CSSProperties, FormEvent, useCallback, useMemo, useRef, useState, type WheelEvent, useEffect } from "react";
 import { Project, Task, TaskStatus } from "../types";
 
 type TaskFormState = {
@@ -8,6 +8,7 @@ type TaskFormState = {
   startDate: string;
   dueDate: string;
   status: TaskStatus;
+  dependencies: string[];
 };
 
 type GanttChartProps = {
@@ -21,6 +22,7 @@ type GanttChartProps = {
 const DAY_MS = 86_400_000;
 const DAY_WIDTH = 110;
 const LABEL_WIDTH = 200;
+const ROW_HEIGHT = 70; // Assuming a fixed row height
 
 const parseISODate = (value: string) => new Date(`${value}T00:00:00`);
 
@@ -46,11 +48,99 @@ const createDefaultTaskForm = (projectId: string): TaskFormState => {
     startDate: toISODate(today),
     dueDate: toISODate(due),
     status: "todo",
+    dependencies: [],
   };
 };
 
-const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdateTask }: GanttChartProps) => {
+const DependencyArrows = ({ rows, tasks, timeline }) => {
+  const taskPositions = useMemo(() => {
+    const positions = new Map();
+    rows.forEach((row, index) => {
+      positions.set(row.task.id, {
+        y: index * ROW_HEIGHT + ROW_HEIGHT / 2,
+        startOffset: row.startOffset,
+        duration: row.duration,
+      });
+    });
+    return positions;
+  }, [rows]);
+
+  const arrows = useMemo(() => {
+    const arrowPaths = [];
+    tasks.forEach(task => {
+      if (task.dependencies) {
+        task.dependencies.forEach(depId => {
+          const fromTaskPos = taskPositions.get(depId);
+          const toTaskPos = taskPositions.get(task.id);
+
+          if (fromTaskPos && toTaskPos) {
+            const x1 = fromTaskPos.startOffset * DAY_WIDTH + fromTaskPos.duration * DAY_WIDTH;
+            const y1 = fromTaskPos.y;
+            const x2 = toTaskPos.startOffset * DAY_WIDTH;
+            const y2 = toTaskPos.y;
+
+            const path = `M ${x1} ${y1} L ${x1 + 20} ${y1} L ${x1 + 20} ${y2} L ${x2} ${y2}`;
+            arrowPaths.push({ id: `${depId}-${task.id}`, path });
+          }
+        });
+      }
+    });
+    return arrowPaths;
+  }, [tasks, taskPositions]);
+
+  return (
+    <svg
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: LABEL_WIDTH,
+        width: timeline.totalDays * DAY_WIDTH,
+        height: rows.length * ROW_HEIGHT,
+        pointerEvents: 'none',
+      }}
+    >
+      <defs>
+        <marker
+          id="arrowhead"
+          markerWidth="10"
+          markerHeight="7"
+          refX="0"
+          refY="3.5"
+          orient="auto"
+        >
+          <polygon points="0 0, 10 3.5, 0 7" />
+        </marker>
+      </defs>
+      {arrows.map(arrow => (
+        <path
+          key={arrow.id}
+          d={arrow.path}
+          fill="none"
+          stroke="#ff4e4e"
+          strokeWidth="2"
+          markerEnd="url(#arrowhead)"
+        />
+      ))}
+    </svg>
+  );
+};
+
+const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdateTask: onUpdateTaskProp }: GanttChartProps) => {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const onUpdateTask = useCallback((taskId: string, input: TaskFormState) => {
+    setIsUpdating(true);
+    onUpdateTaskProp(taskId, input);
+  }, [onUpdateTaskProp]);
+
+  useEffect(() => {
+    if (isUpdating) {
+      const timer = setTimeout(() => setIsUpdating(false), 1000); // Reset after 1 second
+      return () => clearTimeout(timer);
+    }
+  }, [isUpdating]);
+
   const timeline = useMemo(() => {
     let timelineStart: Date;
     let timelineEnd: Date;
@@ -203,6 +293,7 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
       startDate: task.startDate,
       dueDate: task.dueDate,
       status: task.status,
+      dependencies: task.dependencies || [],
     });
     setEditingTaskId(task.id);
     setIsModalOpen(true);
@@ -225,6 +316,33 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
     }
     setIsModalOpen(false);
   };
+
+  const handleDependencyChange = (selectedOptions: HTMLCollectionOf<HTMLOptionElement>) => {
+    const dependencies = Array.from(selectedOptions).map(option => option.value);
+    setTaskForm(prev => ({ ...prev, dependencies }));
+  };
+
+  useEffect(() => {
+    if (isUpdating) return;
+    if (taskForm.dependencies.length > 0) {
+      const latestDependencyDueDate = taskForm.dependencies.reduce((latestDate, depId) => {
+        const dependency = tasks.find(task => task.id === depId);
+        if (dependency) {
+          const depDueDate = parseISODate(dependency.dueDate);
+          if (depDueDate > latestDate) {
+            return depDueDate;
+          }
+        }
+        return latestDate;
+      }, new Date(0));
+
+      if (latestDependencyDueDate > new Date(0)) {
+        const newStartDate = new Date(latestDependencyDueDate);
+        newStartDate.setDate(newStartDate.getDate() + 1);
+        setTaskForm(prev => ({ ...prev, startDate: toISODate(newStartDate) }));
+      }
+    }
+  }, [taskForm.dependencies, tasks, isUpdating]);
 
   return (
     <section className="gantt">
@@ -262,7 +380,7 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
               </div>
             ))}
           </div>
-          <div className="gantt__table-body">
+          <div className="gantt__table-body" style={{ position: 'relative' }}>
             {hasRows ? (
               rows.map(({ task, startOffset, duration, project }) => (
                 <div key={task.id} className="gantt__table-row" style={gridColumnsStyle}>
@@ -291,6 +409,7 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
                 Create tasks to populate the timeline.
               </div>
             )}
+            {hasRows && <DependencyArrows rows={rows} tasks={tasks} timeline={timeline} />}
           </div>
         </div>
       </div>
@@ -373,10 +492,25 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
                   <option value="done">Done</option>
                 </select>
               </label>
+              <label>
+                Dependencies
+                <select
+                  multiple
+                  value={taskForm.dependencies}
+                  onChange={(e) => handleDependencyChange(e.target.selectedOptions)}
+                >
+                  {tasks
+                    .filter(task => task.projectId === taskForm. projectId && task.id !== editingTaskId)
+                    .map(task => (
+                      <option key={task.id} value={task.id}>
+                        {task.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
               <div className="modal__actions">
                 <button type="button" className="modal__secondary" onClick={closeModal}>
                   Cancel
-.
                 </button>
                 <button type="submit" className="modal__primary">
                   {editingTaskId ? "Save changes" : "Create task"}
@@ -391,4 +525,3 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
 };
 
 export default GanttChart;
-
