@@ -141,6 +141,12 @@ const CalendarView = ({ days, selectedProjectId, onAddFile, onRemoveFile, onCrea
       return;
     }
 
+    if (isMobile()) {
+      onAddFile(date, file);
+      event.target.value = "";
+      return;
+    }
+
     const dotIndex = file.name.lastIndexOf(".");
     const extension = dotIndex !== -1 ? file.name.slice(dotIndex) : "";
     const baseName = dotIndex !== -1 ? file.name.slice(0, dotIndex) : file.name;
@@ -408,7 +414,7 @@ const CalendarView = ({ days, selectedProjectId, onAddFile, onRemoveFile, onCrea
                       onChange={handleFileInput(day.date)}
                       hidden
                     />
-                    <span>+ Take Photo</span>
+                    <span>+ Add File</span>
                   </label>
                 )}
               </header>
