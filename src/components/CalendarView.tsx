@@ -17,6 +17,8 @@ type CalendarViewProps = {
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const NOTE_DRAFTS_STORAGE_KEY = "clearview:calendar:noteDrafts";
 
+const isMobile = () => /Mobi/i.test(navigator.userAgent);
+
 const formatDayLabel = (isoDate: string) => {
   const date = new Date(isoDate);
   return date.toLocaleDateString(undefined, {
@@ -385,15 +387,30 @@ const CalendarView = ({ days, selectedProjectId, onAddFile, onRemoveFile, onCrea
                     {day.files.length} file{day.files.length === 1 ? "" : "s"}
                   </small>
                 </div>
-                <label className="calendar__upload">
-                  <input
-                    id={`${inputIdPrefix}-${index}`}
-                    type="file"
-                    onChange={handleFileInput(day.date)}
-                    hidden
-                  />
-                  <span>+ Add file</span>
-                </label>
+                {!isMobile() && (
+                  <label className="calendar__upload">
+                    <input
+                      id={`${inputIdPrefix}-${index}`}
+                      type="file"
+                      onChange={handleFileInput(day.date)}
+                      hidden
+                    />
+                    <span>+ Add file</span>
+                  </label>
+                )}
+                {isMobile() && (
+                  <label className="calendar__upload">
+                    <input
+                      id={`${inputIdPrefix}-${index}-camera`}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFileInput(day.date)}
+                      hidden
+                    />
+                    <span>+ Take Photo</span>
+                  </label>
+                )}
               </header>
               <div className="calendar__files">
                 {day.files.map((file) => (
