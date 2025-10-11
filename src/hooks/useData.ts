@@ -483,21 +483,24 @@ const INVITE_SERVICE_BASE_URL = (() => {
 
     try {
       if (INVITE_SERVICE_BASE_URL !== null) {
-        const response = await fetch(
-          `${INVITE_SERVICE_BASE_URL || ''}/api/projects/${encodeURIComponent(input.projectId)}/invites`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              email: normalizedEmail,
-              name: normalizedName,
-              role,
-            }),
+        const baseUrl = INVITE_SERVICE_BASE_URL ?? "";
+        const endpoint =
+          baseUrl && baseUrl.length > 0
+            ? `${baseUrl}/projects/${encodeURIComponent(input.projectId)}/invites`
+            : `/api/projects/${encodeURIComponent(input.projectId)}/invites`;
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
           },
-        );
+          body: JSON.stringify({
+            email: normalizedEmail,
+            name: normalizedName,
+            role,
+          }),
+        });
 
         let payload: any = null;
         try {
