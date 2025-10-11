@@ -138,7 +138,12 @@ const ensureUniqueMembership = async ({ supabaseAdmin, projectId, targetEmail })
     .eq('project_id', projectId);
 
   if (existingMembersError) {
-    throw new InviteError(500, 'Failed to check existing invites.');
+    console.error('Failed to check existing invites:', existingMembersError);
+    const message =
+      existingMembersError?.message
+        ? `Failed to check existing invites: ${existingMembersError.message}`
+        : 'Failed to check existing invites.';
+    throw new InviteError(500, message);
   }
 
   const alreadyExists = (existingMembers ?? []).some((member) => {
