@@ -48,6 +48,15 @@ export const mapMemberFromSupabase = (row) => ({
   fullName: row.full_name ?? row.fullName ?? row.member_name ?? null,
 });
 
+const buildMemberUpdatePayload = (input) => {
+  const payload = {};
+  if (input.userId !== undefined) payload.user_id = input.userId;
+  if (input.status !== undefined) payload.status = input.status;
+  if (input.acceptedAt !== undefined) payload.accepted_at = input.acceptedAt;
+  if (input.fullName !== undefined) payload.full_name = input.fullName;
+  return payload;
+};
+
 export const parseBearerToken = (authorizationHeader) => {
   if (!authorizationHeader) {
     return null;
@@ -178,6 +187,38 @@ const createInviteRow = async ({ supabaseAdmin, projectId, payload, actorId }) =
   }
 
   return mapMemberFromSupabase(insertedMember);
+};
+
+export const acceptPendingInvitesForUser = async ({ supabaseAdmin, user }) => {
+  const normalizedEmail = (user?.email ?? '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new InviteError(400, 'User email is required to accept invites.');
+  }
+
+  const updatePayload = buildMemberUpdatePayload({
+    userId: user.id,
+    status: 'accepted',
+    acceptedAt: new Date().toISOString(),
+    fullName: user.user_metadata?.full_name ?? user.email ?? null,
+  });
+
+  const { data, error } = await supabaseAdmin
+    .from('project_members')
+    .update(updatePayload)
+    .eq('email', normalizedEmail)
+    .is('user_id', null)
+    .eq('status', 'pending')
+    .select();
+
+  if (error) {
+    console.error('Failed to accept pending invites:', error);
+    throw new InviteError(
+      500,
+      error?.message ? `Failed to accept pending invites: ${error.message}` : 'Failed to accept pending invites.',
+    );
+  }
+
+  return (data ?? []).map(mapMemberFromSupabase);
 };
 
 export const handleInvite = async ({

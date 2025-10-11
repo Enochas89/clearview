@@ -1,7 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { handleInvite, createSupabaseAdminClient, InviteError } from '../../backend/inviteService.js';
+import {
+  handleInvite,
+  createSupabaseAdminClient,
+  InviteError,
+  parseBearerToken,
+  acceptPendingInvitesForUser,
+} from '../../backend/inviteService.js';
 import { createResendInviteEmailSender } from '../../backend/emailService.js';
 
 const {
@@ -70,6 +76,36 @@ app.post('/api/projects/:projectId/invites', async (req, res, next) => {
     }
 
     return res.status(201).json(responsePayload);
+  } catch (err) {
+    if (err instanceof InviteError) {
+      const payload = { error: err.message };
+      if (err.details) {
+        payload.details = err.details;
+      }
+      return res.status(err.statusCode).json(payload);
+    }
+    return next(err);
+  }
+});
+
+app.post('/api/invites/accept', async (req, res, next) => {
+  try {
+    const token = parseBearerToken(req.headers.authorization);
+    if (!token) {
+      throw new InviteError(401, 'Missing or invalid authorization header.');
+    }
+
+    const { data: userData, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !userData?.user) {
+      throw new InviteError(401, 'The session token is invalid or expired.');
+    }
+
+    const members = await acceptPendingInvitesForUser({
+      supabaseAdmin,
+      user: userData.user,
+    });
+
+    res.json({ members });
   } catch (err) {
     if (err instanceof InviteError) {
       const payload = { error: err.message };

@@ -730,36 +730,40 @@ const INVITE_SERVICE_BASE_URL = (() => {
 
     let isCancelled = false;
     const linkPendingInvites = async () => {
-      const normalizedEmail = session.user.email?.toLowerCase().trim();
-      if (!normalizedEmail) {
-        return;
-      }
-
       try {
-        const updatePayload = mapMemberUpdateToSupabase({
-          userId: session.user.id,
-          status: "accepted",
-          acceptedAt: new Date().toISOString(),
-          fullName: session.user.user_metadata?.full_name ?? session.user.email ?? null,
+        const baseUrl = INVITE_SERVICE_BASE_URL ?? "";
+        const endpoint =
+          baseUrl && baseUrl.length > 0
+            ? `${baseUrl}/invites/accept`
+            : "/api/invites/accept";
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
         });
 
-        const { data, error } = await supabase
-          .from('project_members')
-          .update(updatePayload)
-          .eq('email', normalizedEmail)
-          .is('user_id', null)
-          .eq('status', 'pending')
-          .select();
-
-        if (error) {
-          throw error;
+        let payload: any = null;
+        try {
+          payload = await response.json();
+        } catch (_err) {
+          payload = null;
         }
 
-        if (isCancelled || !data || data.length === 0) {
+        if (!response.ok) {
+          const message =
+            (payload && typeof payload.error === "string" && payload.error) ||
+            `Failed to accept invites (${response.status}).`;
+          throw new Error(message);
+        }
+
+        if (isCancelled || !payload || !Array.isArray(payload.members) || payload.members.length === 0) {
           return;
         }
 
-        const mappedMembers = data.map(mapMemberFromSupabase);
+        const mappedMembers = payload.members.map(mapMemberFromSupabase);
         setProjectMembers((prev) => {
           const next = [...prev];
           let changed = false;
