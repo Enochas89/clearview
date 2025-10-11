@@ -134,7 +134,7 @@ const ensureActorPermissions = async ({ supabaseAdmin, projectId, userId, roleRe
 const ensureUniqueMembership = async ({ supabaseAdmin, projectId, targetEmail }) => {
   const { data: existingMembers, error: existingMembersError } = await supabaseAdmin
     .from('project_members')
-    .select('id, email, member_email')
+    .select('id, email')
     .eq('project_id', projectId);
 
   if (existingMembersError) {
@@ -147,7 +147,7 @@ const ensureUniqueMembership = async ({ supabaseAdmin, projectId, targetEmail })
   }
 
   const alreadyExists = (existingMembers ?? []).some((member) => {
-    const memberEmail = (member.email ?? member.member_email ?? '').toLowerCase();
+    const memberEmail = (member.email ?? '').toLowerCase();
     return memberEmail === targetEmail;
   });
 
