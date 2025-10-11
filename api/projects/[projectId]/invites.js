@@ -14,6 +14,15 @@ const {
 let supabaseAdmin;
 let inviteEmailSender;
 
+const setCorsHeaders = (res, origin) => {
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+};
+
 const getSupabaseAdmin = () => {
   if (supabaseAdmin) {
     return supabaseAdmin;
@@ -86,6 +95,14 @@ const parseBody = async (req) => {
 };
 
 export default async function handler(req, res) {
+  const origin = req.headers.origin ?? process.env.INVITE_EMAIL_APP_URL ?? '*';
+  setCorsHeaders(res, origin);
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed.' });
