@@ -39,7 +39,7 @@ export const mapMemberFromSupabase = (row) => ({
   id: row.id,
   projectId: row.project_id ?? row.projectId ?? '',
   userId: row.user_id ?? row.userId ?? null,
-  email: (row.email ?? row.member_email ?? '').toLowerCase(),
+  email: (row.email ?? '').toLowerCase(),
   role: row.role ?? row.member_role ?? 'viewer',
   status: row.status ?? row.member_status ?? 'pending',
   invitedBy: row.invited_by ?? row.invitedBy ?? '',
