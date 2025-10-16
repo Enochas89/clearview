@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Update the sitemap URL after deployment if a public domain is available.
+# Sitemap: https://your-domain.com/sitemap.xml

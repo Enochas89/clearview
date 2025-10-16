@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Review Change Order</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+        color: #0f172a;
+        min-height: 100vh;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 32px 16px;
+      }
+      .shell {
+        width: min(720px, 100%);
+        background: rgba(255, 255, 255, 0.96);
+        border-radius: 20px;
+        box-shadow: 0 20px 45px -25px rgba(15, 23, 42, 0.35);
+        padding: clamp(20px, 5vw, 36px);
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(24px, 5vw, 30px);
+      }
+      .note {
+        margin: 0;
+        color: #475569;
+        line-height: 1.6;
+      }
+      .card {
+        background: #f8fafc;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        border-radius: 16px;
+        padding: clamp(16px, 4vw, 24px);
+        display: grid;
+        gap: 12px;
+      }
+      .card dl {
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      .card dt {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .card dd {
+        margin: 0;
+        font-size: 15px;
+        color: #0f172a;
+        font-weight: 600;
+      }
+      form {
+        display: grid;
+        gap: 18px;
+      }
+      label {
+        display: grid;
+        gap: 8px;
+        font-weight: 600;
+        color: #1e293b;
+      }
+      input[type="text"],
+      input[type="email"],
+      textarea {
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.55);
+        padding: 12px 14px;
+        font-size: 15px;
+        font-family: inherit;
+        color: inherit;
+        background: rgba(255, 255, 255, 0.92);
+      }
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+      fieldset {
+        border: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 12px;
+      }
+      .option {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .signature-container {
+        display: grid;
+        gap: 10px;
+      }
+      canvas {
+        width: 100%;
+        height: 180px;
+        border-radius: 12px;
+        border: 1px dashed rgba(148, 163, 184, 0.7);
+        background: #fff;
+        touch-action: none;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      button {
+        border-radius: 999px;
+        border: none;
+        padding: 12px 22px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .primary {
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        color: #fff;
+      }
+      .secondary {
+        background: transparent;
+        border: 1px solid rgba(148, 163, 184, 0.55);
+        color: #475569;
+      }
+      .error {
+        background: rgba(248, 113, 113, 0.16);
+        border-radius: 12px;
+        padding: 12px 16px;
+        color: #b91c1c;
+      }
+      .success {
+        background: rgba(34, 197, 94, 0.16);
+        border-radius: 12px;
+        padding: 12px 16px;
+        color: #047857;
+      }
+      ul.timeline {
+        margin: 0;
+        padding-left: 20px;
+        color: #475569;
+      }
+      .inset {
+        background: rgba(241, 245, 249, 0.6);
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 14px;
+        color: #475569;
+      }
+      footer {
+        font-size: 12px;
+        color: #94a3b8;
+        text-align: center;
+      }
+      @media (max-width: 640px) {
+        .actions {
+          flex-direction: column;
+        }
+        button {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <h1>Review change order</h1>
+        <p class="note" id="intro-note">Loading details…</p>
+      </header>
+
+      <section class="card" id="details-card" hidden>
+        <dl>
+          <div>
+            <dt>Project</dt>
+            <dd id="project-name">--</dd>
+          </div>
+          <div>
+            <dt>Change order</dt>
+            <dd id="change-order-title">--</dd>
+          </div>
+          <div>
+            <dt>Summary</dt>
+            <dd id="change-order-description">--</dd>
+          </div>
+          <div>
+            <dt>Estimated cost impact</dt>
+            <dd id="change-order-amount">--</dd>
+          </div>
+          <div>
+            <dt>Requested response</dt>
+            <dd id="change-order-due">--</dd>
+          </div>
+        </dl>
+      </section>
+
+      <form id="decision-form" hidden>
+        <fieldset>
+          <legend style="font-weight: 600; color: #1e293b;">Decision</legend>
+          <label class="option">
+            <input type="radio" name="decision" value="approved" checked />
+            <span>Approve this change</span>
+          </label>
+          <label class="option">
+            <input type="radio" name="decision" value="denied" />
+            <span>Deny this change</span>
+          </label>
+          <label class="option">
+            <input type="radio" name="decision" value="needs_info" />
+            <span>Request more information</span>
+          </label>
+        </fieldset>
+
+        <label id="notes-label">
+          Additional notes (required when requesting more information)
+          <textarea id="notes"></textarea>
+        </label>
+
+        <div class="signature-container">
+          <label>
+            Your name
+            <input type="text" id="signed-name" required />
+          </label>
+          <label>
+            Email address
+            <input type="email" id="signed-email" required />
+          </label>
+          <label>
+            Signature (draw or leave blank to use typed name)
+            <canvas id="signature-pad"></canvas>
+          </label>
+          <button type="button" class="secondary" id="clear-signature">Clear signature</button>
+        </div>
+
+        <div class="inset">
+          <strong>Next steps:</strong>
+          <ul class="timeline">
+            <li>After submission, your decision is recorded instantly.</li>
+            <li>The project team receives an email notification.</li>
+            <li>You can request further changes by replying to that email.</li>
+          </ul>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="primary" id="submit-button">Submit decision</button>
+        </div>
+      </form>
+
+      <section class="error" id="error-box" hidden></section>
+      <section class="success" id="success-box" hidden></section>
+
+      <footer>
+        Secure link powered by ClearView • This link expires after use.
+      </footer>
+    </main>
+
+    <script>
+      const introNote = document.getElementById("intro-note");
+      const detailsCard = document.getElementById("details-card");
+      const decisionForm = document.getElementById("decision-form");
+      const errorBox = document.getElementById("error-box");
+      const successBox = document.getElementById("success-box");
+      const submitButton = document.getElementById("submit-button");
+      const notesLabel = document.getElementById("notes-label");
+      const notesInput = document.getElementById("notes");
+      const nameInput = document.getElementById("signed-name");
+      const emailInput = document.getElementById("signed-email");
+      const signatureCanvas = document.getElementById("signature-pad");
+      const clearSignatureBtn = document.getElementById("clear-signature");
+
+      const projectNameEl = document.getElementById("project-name");
+      const titleEl = document.getElementById("change-order-title");
+      const descriptionEl = document.getElementById("change-order-description");
+      const amountEl = document.getElementById("change-order-amount");
+      const dueEl = document.getElementById("change-order-due");
+
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+
+      let signatureDrawn = false;
+      let signatureContext;
+      let canvasRect;
+
+      const resizeCanvas = () => {
+        const ratio = window.devicePixelRatio || 1;
+        signatureCanvas.width = signatureCanvas.offsetWidth * ratio;
+        signatureCanvas.height = signatureCanvas.offsetHeight * ratio;
+        signatureContext = signatureCanvas.getContext("2d");
+        signatureContext.scale(ratio, ratio);
+        signatureContext.lineWidth = 2;
+        signatureContext.lineCap = "round";
+        signatureContext.strokeStyle = "#1d4ed8";
+        signatureContext.fillStyle = "#ffffff";
+        signatureContext.clearRect(0, 0, signatureCanvas.offsetWidth, signatureCanvas.offsetHeight);
+        signatureContext.fillRect(0, 0, signatureCanvas.offsetWidth, signatureCanvas.offsetHeight);
+        signatureDrawn = false;
+        canvasRect = signatureCanvas.getBoundingClientRect();
+      };
+
+      const getCanvasPoint = (event) => {
+        const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+        const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+        const x = clientX - canvasRect.left;
+        const y = clientY - canvasRect.top;
+        return { x, y };
+      };
+
+      let drawing = false;
+      const startDrawing = (event) => {
+        event.preventDefault();
+        drawing = true;
+        const { x, y } = getCanvasPoint(event);
+        signatureContext.beginPath();
+        signatureContext.moveTo(x, y);
+        signatureDrawn = true;
+      };
+
+      const draw = (event) => {
+        if (!drawing) return;
+        event.preventDefault();
+        const { x, y } = getCanvasPoint(event);
+        signatureContext.lineTo(x, y);
+        signatureContext.stroke();
+      };
+
+      const stopDrawing = (event) => {
+        if (!drawing) return;
+        event.preventDefault();
+        drawing = false;
+      };
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+      signatureCanvas.addEventListener("pointerdown", startDrawing);
+      signatureCanvas.addEventListener("pointermove", draw);
+      signatureCanvas.addEventListener("pointerup", stopDrawing);
+      signatureCanvas.addEventListener("pointerleave", stopDrawing);
+      signatureCanvas.addEventListener("touchstart", startDrawing, { passive: false });
+      signatureCanvas.addEventListener("touchmove", draw, { passive: false });
+      signatureCanvas.addEventListener("touchend", stopDrawing, { passive: false });
+
+      clearSignatureBtn.addEventListener("click", () => {
+        resizeCanvas();
+      });
+
+      const formatCurrency = (value) => {
+        if (value === null || value === undefined) {
+          return "--";
+        }
+        try {
+          return new Intl.NumberFormat(undefined, {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 0,
+          }).format(Number(value));
+        } catch (err) {
+          return "$" + value;
+        }
+      };
+
+      const formatDate = (value) => {
+        if (!value) return "--";
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return "--";
+        return parsed.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+      };
+
+      const showError = (message) => {
+        errorBox.textContent = message;
+        errorBox.hidden = false;
+        successBox.hidden = true;
+        decisionForm.hidden = true;
+      };
+
+      const showSuccess = (message) => {
+        successBox.textContent = message;
+        successBox.hidden = false;
+        errorBox.hidden = true;
+        decisionForm.hidden = true;
+      };
+
+      if (!token) {
+        showError("Missing or invalid link.");
+      } else {
+        fetch(`/api/change-orders/verify?token=${encodeURIComponent(token)}`)
+          .then(async (response) => {
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+              throw new Error(payload?.error || "Unable to load change order.");
+            }
+            return payload;
+          })
+          .then((payload) => {
+            introNote.textContent = "Please review the details below and record your decision.";
+            detailsCard.hidden = false;
+            decisionForm.hidden = false;
+            errorBox.hidden = true;
+
+            const project = payload.project ?? {};
+            const changeOrder = payload.changeOrder ?? {};
+            const client = payload.clientProfile ?? {};
+
+            projectNameEl.textContent = project.name || "--";
+            titleEl.textContent = changeOrder.title || "--";
+            descriptionEl.textContent = changeOrder.description || "--";
+            amountEl.textContent = formatCurrency(changeOrder.amount);
+            dueEl.textContent = formatDate(changeOrder.dueDate);
+
+            if (client.contact_name) {
+              nameInput.placeholder = client.contact_name;
+            }
+            if (client.contact_email) {
+              emailInput.value = client.contact_email;
+            }
+          })
+          .catch((error) => {
+            console.error(error);
+            showError(error.message);
+          });
+      }
+
+      decisionForm.addEventListener("change", (event) => {
+        if (event.target.name === "decision") {
+          const value = event.target.value;
+          if (value === "needs_info") {
+            notesLabel.style.fontWeight = "700";
+          } else {
+            notesLabel.style.fontWeight = "600";
+          }
+        }
+      });
+
+      decisionForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        errorBox.hidden = true;
+        successBox.hidden = true;
+
+        const selectedDecision = decisionForm.querySelector('input[name="decision"]:checked')?.value;
+        const cleanedNotes = notesInput.value.trim();
+
+        if (selectedDecision === "needs_info" && cleanedNotes.length === 0) {
+          showError("Please describe what additional information you need.");
+          return;
+        }
+
+        const signedName = nameInput.value.trim();
+        const signedEmail = emailInput.value.trim();
+
+        if (!signedName || !signedEmail) {
+          showError("Enter your name and email to complete this form.");
+          return;
+        }
+
+        submitButton.disabled = true;
+        submitButton.textContent = "Submitting…";
+
+        let signatureImage = null;
+        if (signatureDrawn) {
+          signatureImage = signatureCanvas.toDataURL("image/png");
+        }
+
+        fetch("/api/change-orders/respond", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            token,
+            decision: selectedDecision,
+            notes: cleanedNotes,
+            signedName,
+            signedEmail,
+            signatureImage,
+          }),
+        })
+          .then(async (response) => {
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+              throw new Error(payload?.error || "Unable to submit decision.");
+            }
+            return payload;
+          })
+          .then(() => {
+            showSuccess("Thank you—your decision has been recorded. You can close this window now.");
+          })
+          .catch((error) => {
+            console.error(error);
+            showError(error.message);
+          })
+          .finally(() => {
+            submitButton.disabled = false;
+            submitButton.textContent = "Submit decision";
+          });
+      });
+    </script>
+  </body>
+</html>
