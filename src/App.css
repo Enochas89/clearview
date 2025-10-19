@@ -1048,6 +1048,13 @@
   color: #94a3b8;
 }
 
+.calendar__recent-author {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
 .calendar__recent-title {
   margin: 0;
   font-size: 14px;
@@ -1069,6 +1076,7 @@
 
 .calendar__recent-attachment {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
@@ -1102,6 +1110,13 @@
   object-fit: cover;
 }
 
+.calendar__recent-thumb-fallback {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
 .calendar__recent-attachment-copy {
   display: flex;
   flex-direction: column;
@@ -1132,6 +1147,12 @@
   background: #ffffff;
   border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: 14px;
+}
+
+.calendar__post-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a8a;
 }
 
 .calendar__post-header {
@@ -1173,6 +1194,7 @@
 
 .calendar__post-attachment {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
@@ -1186,6 +1208,43 @@
 
 .calendar__post-attachment small {
   color: #1e3a8a;
+}
+
+.calendar__post-attachment--image {
+  border-style: solid;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.calendar__post-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.08);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.calendar__post-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.calendar__post-thumb-fallback {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.calendar__post-attachment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
 }
 
 .gantt {

@@ -118,7 +118,7 @@ const CalendarView = ({
     setPendingUpload((prev) => (prev ? { ...prev, baseName: value } : prev));
   };
 
-  const handleUploadSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleUploadSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!pendingUpload) {
       return;
@@ -138,8 +138,12 @@ const CalendarView = ({
             lastModified: pendingUpload.file.lastModified,
           });
 
-    onAddFile(pendingUpload.date, fileToUpload);
-    setPendingUpload(null);
+    try {
+      await onAddFile(pendingUpload.date, fileToUpload);
+      setPendingUpload(null);
+    } catch (err) {
+      console.error("Error uploading file:", err);
+    }
   };
 
   const handleComposerMessageChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -185,7 +189,7 @@ const CalendarView = ({
     setComposerFileName(event.target.value);
   };
 
-  const handleComposerSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleComposerSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!composerMessage.trim() && !composerFile) {
       setComposerError("Add a note or attach a file before posting.");
@@ -208,12 +212,17 @@ const CalendarView = ({
       }
     }
 
-    onCreatePost({ message: composerMessage, file: fileToShare });
-    setComposerMessage("");
-    setComposerFile(null);
-    setComposerFileName("");
-    setComposerFileExtension("");
-    setComposerError(null);
+    try {
+      await onCreatePost({ message: composerMessage, file: fileToShare });
+      setComposerMessage("");
+      setComposerFile(null);
+      setComposerFileName("");
+      setComposerFileExtension("");
+      setComposerError(null);
+    } catch (err) {
+      console.error("Error sharing update:", err);
+      setComposerError("Something went wrong while sharing. Please try again.");
+    }
   };
 
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -312,7 +321,7 @@ const CalendarView = ({
       <div className="calendar__header">
         <div>
           <h2>Daily updates</h2>
-          <p>Share quick notes or drop files—everything lands on the correct day automatically.</p>
+          <p>Share quick notes or drop files&mdash;everything lands on the correct day automatically.</p>
         </div>
       </div>
 
@@ -353,9 +362,10 @@ const CalendarView = ({
                     {activity.type === "post" ? "Post" : "File"}
                   </span>
                   <span className="calendar__recent-meta">
-                    {formatDayLabel(activity.date)} · {formatTimeLabel(activity.createdAt)}
+                    {formatDayLabel(activity.date)} &bull; {formatTimeLabel(activity.createdAt)}
                   </span>
                 </div>
+                {activity.authorName && <p className="calendar__recent-author">by {activity.authorName}</p>}
                 <p className="calendar__recent-title">{activity.title}</p>
                 {activity.details && <p className="calendar__recent-details">{activity.details}</p>}
                 {activity.attachments && activity.attachments.length > 0 && (
@@ -365,14 +375,20 @@ const CalendarView = ({
                         key={attachment.id}
                         href={attachment.url}
                         download={attachment.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className={`calendar__recent-attachment${
-                          attachment.type.startsWith("image/") ? " calendar__recent-attachment--image" : ""
+                          attachment.type?.startsWith("image/") ? " calendar__recent-attachment--image" : ""
                         }`}
                       >
-                        {attachment.type.startsWith("image/") ? (
+                        {attachment.type?.startsWith("image/") ? (
                           <>
                             <div className="calendar__recent-thumb">
-                              <img src={attachment.url} alt={attachment.name} />
+                              {attachment.url ? (
+                                <img src={attachment.url} alt={attachment.name} />
+                              ) : (
+                                <span className="calendar__recent-thumb-fallback" />
+                              )}
                             </div>
                             <div className="calendar__recent-attachment-copy">
                               <span>{attachment.name}</span>
@@ -404,7 +420,7 @@ const CalendarView = ({
               <div>
                 <strong>{formatDayLabel(day.date)}</strong>
                 <small>
-                  {day.posts.length} update{day.posts.length === 1 ? "" : "s"} · {day.files.length} file
+                  {day.posts.length} update{day.posts.length === 1 ? "" : "s"} &bull; {day.files.length} file
                   {day.files.length === 1 ? "" : "s"}
                 </small>
               </div>
@@ -423,6 +439,12 @@ const CalendarView = ({
                 <div className="calendar__posts">
                   {day.posts.map((post) => (
                     <article key={post.id} className="calendar__post">
+                      <header className="calendar__post-header">
+                        <span className="calendar__post-author">{post.authorName ?? "Project update"}</span>
+                        {post.createdAt && (
+                          <span className="calendar__post-time">{formatTimeLabel(post.createdAt)}</span>
+                        )}
+                      </header>
                       {post.message && <p className="calendar__post-message">{post.message}</p>}
                       {post.attachments.length > 0 && (
                         <div className="calendar__post-attachments">
@@ -431,10 +453,32 @@ const CalendarView = ({
                               key={attachment.id}
                               href={attachment.url}
                               download={attachment.name}
-                              className="calendar__post-attachment"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`calendar__post-attachment${
+                                attachment.type?.startsWith("image/") ? " calendar__post-attachment--image" : ""
+                              }`}
                             >
-                              <span>{attachment.name}</span>
-                              <small>{formatFileSize(attachment.size)}</small>
+                              {attachment.type?.startsWith("image/") ? (
+                                <>
+                                  <div className="calendar__post-thumb" aria-hidden="true">
+                                    {attachment.url ? (
+                                      <img src={attachment.url} alt={attachment.name} />
+                                    ) : (
+                                      <span className="calendar__post-thumb-fallback" />
+                                    )}
+                                  </div>
+                                  <div className="calendar__post-attachment-meta">
+                                    <span>{attachment.name}</span>
+                                    <small>{formatFileSize(attachment.size)}</small>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <span>{attachment.name}</span>
+                                  <small>{formatFileSize(attachment.size)}</small>
+                                </>
+                              )}
                             </a>
                           ))}
                         </div>
@@ -451,6 +495,7 @@ const CalendarView = ({
                       <div className="calendar__file-meta">
                         <span className="calendar__file-name">{file.name}</span>
                         <small>{formatFileSize(file.size)}</small>
+                        {file.uploadedByName && <small>Uploaded by {file.uploadedByName}</small>}
                       </div>
                       <div className="calendar__file-actions">
                         <a href={file.url} download={file.name} className="calendar__link">

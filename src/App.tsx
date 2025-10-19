@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import CalendarView from "./components/CalendarView";
 import GanttChart from "./components/GanttChart";
 import Sidebar from "./components/Sidebar";
-import { DayActivity, DayEntry, Project, Task } from "./types";
+import { DayActivity, DayEntry, DayFile, Project, Task } from "./types";
 import "./App.css";
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
@@ -150,21 +150,49 @@ function App() {
     async (projectId: string) => {
       try {
         setError(null);
-        const [{ data: noteRows, error: notesError }, { data: fileRows, error: filesError }] = await Promise.all([
+        const [
+          { data: noteRows, error: notesError },
+          { data: fileRows, error: filesError },
+          { data: memberRows, error: membersError },
+        ] = await Promise.all([
           supabase
             .from("notes")
-            .select("id, note_date, body, created_at")
+            .select("id, note_date, body, created_at, user_id")
             .eq("project_id", projectId)
             .order("note_date", { ascending: true }),
           supabase
             .from("day_files")
-            .select("id, note_date, bucket_id, storage_path, file_name, file_size, content_type, created_at")
+            .select(
+              "id, note_date, bucket_id, storage_path, file_name, file_size, content_type, created_at, note_id, uploaded_by"
+            )
             .eq("project_id", projectId)
             .order("note_date", { ascending: true }),
+          supabase
+            .from("project_members")
+            .select("user_id, full_name, email")
+            .eq("project_id", projectId),
         ]);
 
         if (notesError) throw notesError;
         if (filesError) throw filesError;
+
+        if (membersError) {
+          console.warn("Unable to load project members:", membersError.message);
+        }
+
+        const memberLookup = new Map<string, { name?: string | null; email?: string | null }>();
+        const effectiveMembers = membersError ? [] : memberRows ?? [];
+        effectiveMembers.forEach((member) => {
+          if (member.user_id) {
+            memberLookup.set(member.user_id, { name: member.full_name, email: member.email });
+          }
+        });
+        if (session?.user) {
+          memberLookup.set(session.user.id, {
+            name: session.user.user_metadata?.full_name ?? session.user.email ?? null,
+            email: session.user.email ?? null,
+          });
+        }
 
         const entriesByDate = new Map<string, DayEntry>();
 
@@ -181,10 +209,16 @@ function App() {
 
         (noteRows ?? []).forEach((note) => {
           const entry = ensureEntry(note.note_date);
+          const authorRecord = note.user_id ? memberLookup.get(note.user_id) : undefined;
+          const authorName =
+            authorRecord?.name ||
+            authorRecord?.email ||
+            (note.user_id && note.user_id === session?.user?.id ? "You" : null);
           entry.posts.push({
             id: note.id,
             message: note.body ?? "",
             createdAt: note.created_at ?? "",
+            authorName,
             attachments: [],
           });
         });
@@ -216,7 +250,7 @@ function App() {
 
         fileRowsSafe.forEach((file) => {
           const entry = ensureEntry(file.note_date);
-          entry.files.push({
+          const fileRecord: DayFile = {
             id: file.id,
             name: file.file_name,
             size: Number(file.file_size ?? 0),
@@ -225,11 +259,36 @@ function App() {
             url: signedUrlMap.get(file.storage_path) ?? "",
             storagePath: file.storage_path,
             bucketId: file.bucket_id ?? DAILY_UPLOADS_BUCKET,
-          });
+            noteId: file.note_id ?? null,
+            uploadedBy: file.uploaded_by ?? null,
+            uploadedByName:
+              (file.uploaded_by ? memberLookup.get(file.uploaded_by)?.name : undefined) ||
+              (file.uploaded_by ? memberLookup.get(file.uploaded_by)?.email : undefined) ||
+              null,
+          };
+          if (!fileRecord.uploadedByName && file.uploaded_by === session?.user?.id) {
+            fileRecord.uploadedByName = "You";
+          }
+
+          if (fileRecord.noteId) {
+            const post = entry.posts.find((item) => item.id === fileRecord.noteId);
+            if (post) {
+              if (!fileRecord.uploadedByName && post.authorName) {
+                fileRecord.uploadedByName = post.authorName;
+              }
+              post.attachments.push(fileRecord);
+              return;
+            }
+          }
+
+          entry.files.push(fileRecord);
         });
 
         entriesByDate.forEach((entry) => {
           entry.posts.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+          entry.posts.forEach((post) => {
+            post.attachments.sort((a, b) => (a.addedAt > b.addedAt ? -1 : 1));
+          });
           entry.files.sort((a, b) => (a.addedAt > b.addedAt ? -1 : 1));
         });
 
@@ -247,11 +306,11 @@ function App() {
         setError(err.message ?? "Failed to load daily updates.");
       }
     },
-    [setProjectDayEntries, setError]
+    [session, setProjectDayEntries, setError]
   );
 
   const uploadDayFile = useCallback(
-    async (noteDate: string, file: File) => {
+    async (noteDate: string, file: File, options?: { noteId?: string | null }) => {
       if (!selectedProjectId) {
         throw new Error("No project selected");
       }
@@ -270,23 +329,29 @@ function App() {
         throw uploadError;
       }
 
-      const { error: insertError } = await supabase.from("day_files").insert([
-        {
-          project_id: projectId,
-          note_date: noteDate,
-          bucket_id: DAILY_UPLOADS_BUCKET,
-          storage_path: fileKey,
-          file_name: file.name,
-          file_size: file.size,
-          content_type: file.type || "application/octet-stream",
-          uploaded_by: session?.user?.id ?? null,
-        },
-      ]);
+      const { data: insertedFiles, error: insertError } = await supabase
+        .from("day_files")
+        .insert([
+          {
+            project_id: projectId,
+            note_date: noteDate,
+            bucket_id: DAILY_UPLOADS_BUCKET,
+            storage_path: fileKey,
+            file_name: file.name,
+            file_size: file.size,
+            content_type: file.type || "application/octet-stream",
+            uploaded_by: session?.user?.id ?? null,
+            note_id: options?.noteId ?? null,
+          },
+        ])
+        .select("id");
 
       if (insertError) {
         await supabase.storage.from(DAILY_UPLOADS_BUCKET).remove([fileKey]);
         throw insertError;
       }
+
+      return insertedFiles?.[0] ?? null;
     },
     [selectedProjectId, session?.user?.id]
   );
@@ -536,7 +601,9 @@ function App() {
           date: day.date,
           createdAt: file.addedAt,
           title: file.name,
-          details: "File uploaded",
+          details: file.uploadedByName ? `Uploaded by ${file.uploadedByName}` : "File uploaded",
+          authorName: file.uploadedByName ?? null,
+          attachments: [file],
         });
       });
 
@@ -550,6 +617,7 @@ function App() {
           title: trimmedMessage || "Shared an update",
           details: trimmedMessage ? undefined : "Shared an update",
           attachments: post.attachments,
+          authorName: post.authorName ?? null,
         });
       });
     });
@@ -697,6 +765,7 @@ function App() {
   const handleAddFile = async (date: string, file: File) => {
     if (!selectedProjectId) return;
     try {
+      setError(null);
       await uploadDayFile(date, file);
       await loadDayEntries(selectedProjectId);
     } catch (err: any) {
@@ -709,12 +778,28 @@ function App() {
     if (!selectedProjectId) return;
 
     const projectDays = projectDayEntries.get(selectedProjectId) ?? [];
-    const entryWithFile = projectDays.find((entry) => entry.files.some((file) => file.id === fileId));
-    const fileMeta = entryWithFile?.files.find((file) => file.id === fileId);
-    const bucketId = fileMeta?.bucketId ?? DAILY_UPLOADS_BUCKET;
-    const storagePath = fileMeta?.storagePath;
+    let bucketId = DAILY_UPLOADS_BUCKET;
+    let storagePath: string | undefined;
+
+    outer: for (const entry of projectDays) {
+      const directFile = entry.files.find((file) => file.id === fileId);
+      if (directFile) {
+        bucketId = directFile.bucketId ?? bucketId;
+        storagePath = directFile.storagePath;
+        break outer;
+      }
+      for (const post of entry.posts) {
+        const attachment = post.attachments.find((file) => file.id === fileId);
+        if (attachment) {
+          bucketId = attachment.bucketId ?? bucketId;
+          storagePath = attachment.storagePath;
+          break outer;
+        }
+      }
+    }
 
     try {
+      setError(null);
       if (storagePath) {
         await supabase.storage.from(bucketId).remove([storagePath]);
       }
@@ -744,20 +829,24 @@ function App() {
     const todayIso = toISODate(new Date());
 
     try {
-      if (trimmedMessage) {
-        const { error: insertError } = await supabase.from("notes").insert({
+      setError(null);
+      const { data: insertedNote, error: noteError } = await supabase
+        .from("notes")
+        .insert({
           project_id: selectedProjectId,
           note_date: todayIso,
-          body: trimmedMessage,
+          body: trimmedMessage || "",
           user_id: session?.user?.id ?? null,
-        });
-        if (insertError) {
-          throw insertError;
-        }
+        })
+        .select("id")
+        .single();
+
+      if (noteError) {
+        throw noteError;
       }
 
       if (attachmentFile) {
-        await uploadDayFile(todayIso, attachmentFile);
+        await uploadDayFile(todayIso, attachmentFile, { noteId: insertedNote?.id });
       }
 
       await loadDayEntries(selectedProjectId);

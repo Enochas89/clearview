@@ -32,13 +32,19 @@ export type DayFile = {
   size: number;
   type: string;
   addedAt: string;
-  url: string;\r\n  storagePath\?: string;\r\n  bucketId\?: string;
+  url: string;
+  storagePath?: string;
+  bucketId?: string;
+  noteId?: string | null;
+  uploadedBy?: string | null;
+  uploadedByName?: string | null;
 };
 
 export type DayPost = {
   id: string;
   message: string;
   createdAt: string;
+  authorName?: string | null;
   attachments: DayFile[];
 };
 
@@ -50,6 +56,7 @@ export type DayActivity = {
   title: string;
   details?: string;
   attachments?: DayFile[];
+  authorName?: string | null;
 };
 
 export type DayEntry = {
