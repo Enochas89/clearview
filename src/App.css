@@ -1145,22 +1145,12 @@
   border: none;
   background: none;
   color: #475569;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: 999px;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease;
-  font-size: 0;
-  line-height: 1;
-}
-
-.calendar__post-menu-toggle::before {
-  content: "…";
-  font-size: 18px;
 }
 
 .calendar__post-menu-toggle:hover,
