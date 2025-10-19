@@ -1,4 +1,4 @@
-﻿export type Project = {
+export type Project = {
   id: string;
   name: string;
   description: string;
@@ -32,7 +32,7 @@ export type DayFile = {
   size: number;
   type: string;
   addedAt: string;
-  url: string;
+  url: string;\r\n  storagePath\?: string;\r\n  bucketId\?: string;
 };
 
 export type DayPost = {

@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import CalendarView from "./components/CalendarView";
 import GanttChart from "./components/GanttChart";
 import Sidebar from "./components/Sidebar";
-import { DayActivity, DayEntry, DayFile, Project, Task } from "./types";
+import { DayActivity, DayEntry, Project, Task } from "./types";
 import "./App.css";
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import { Session } from '@supabase/supabase-js';
 
 const DAY_MS = 86_400_000;
+const DAILY_UPLOADS_BUCKET = "daily-uploads";
 
 type ProjectRow = {
   id: string;
@@ -144,7 +145,151 @@ function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const objectUrls = useRef(new Map<string, string>());
+
+  const loadDayEntries = useCallback(
+    async (projectId: string) => {
+      try {
+        setError(null);
+        const [{ data: noteRows, error: notesError }, { data: fileRows, error: filesError }] = await Promise.all([
+          supabase
+            .from("notes")
+            .select("id, note_date, body, created_at")
+            .eq("project_id", projectId)
+            .order("note_date", { ascending: true }),
+          supabase
+            .from("day_files")
+            .select("id, note_date, bucket_id, storage_path, file_name, file_size, content_type, created_at")
+            .eq("project_id", projectId)
+            .order("note_date", { ascending: true }),
+        ]);
+
+        if (notesError) throw notesError;
+        if (filesError) throw filesError;
+
+        const entriesByDate = new Map<string, DayEntry>();
+
+        const ensureEntry = (isoDate: string) => {
+          if (!entriesByDate.has(isoDate)) {
+            entriesByDate.set(isoDate, {
+              date: isoDate,
+              files: [],
+              posts: [],
+            });
+          }
+          return entriesByDate.get(isoDate)!;
+        };
+
+        (noteRows ?? []).forEach((note) => {
+          const entry = ensureEntry(note.note_date);
+          entry.posts.push({
+            id: note.id,
+            message: note.body ?? "",
+            createdAt: note.created_at ?? "",
+            attachments: [],
+          });
+        });
+
+        const fileRowsSafe = fileRows ?? [];
+        const bucketGroups = new Map<string, string[]>();
+        fileRowsSafe.forEach((file) => {
+          const bucketId = file.bucket_id ?? DAILY_UPLOADS_BUCKET;
+          if (!bucketGroups.has(bucketId)) {
+            bucketGroups.set(bucketId, []);
+          }
+          bucketGroups.get(bucketId)!.push(file.storage_path);
+        });
+
+        const signedUrlMap = new Map<string, string>();
+        for (const [bucketId, paths] of bucketGroups) {
+          if (paths.length === 0) continue;
+          const { data, error: signedUrlError } = await supabase.storage.from(bucketId).createSignedUrls(paths, 60 * 60);
+          if (signedUrlError) {
+            console.error("Error creating signed URLs:", signedUrlError);
+            continue;
+          }
+          data?.forEach((item) => {
+            if (item.signedUrl) {
+              signedUrlMap.set(item.path, item.signedUrl);
+            }
+          });
+        }
+
+        fileRowsSafe.forEach((file) => {
+          const entry = ensureEntry(file.note_date);
+          entry.files.push({
+            id: file.id,
+            name: file.file_name,
+            size: Number(file.file_size ?? 0),
+            type: file.content_type ?? "",
+            addedAt: file.created_at ?? "",
+            url: signedUrlMap.get(file.storage_path) ?? "",
+            storagePath: file.storage_path,
+            bucketId: file.bucket_id ?? DAILY_UPLOADS_BUCKET,
+          });
+        });
+
+        entriesByDate.forEach((entry) => {
+          entry.posts.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+          entry.files.sort((a, b) => (a.addedAt > b.addedAt ? -1 : 1));
+        });
+
+        const orderedEntries = Array.from(entriesByDate.entries())
+          .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+          .map(([, entry]) => entry);
+
+        setProjectDayEntries((prev) => {
+          const next = new Map(prev);
+          next.set(projectId, orderedEntries);
+          return next;
+        });
+      } catch (err: any) {
+        console.error("Error loading daily updates:", err);
+        setError(err.message ?? "Failed to load daily updates.");
+      }
+    },
+    [setProjectDayEntries, setError]
+  );
+
+  const uploadDayFile = useCallback(
+    async (noteDate: string, file: File) => {
+      if (!selectedProjectId) {
+        throw new Error("No project selected");
+      }
+
+      const projectId = selectedProjectId;
+      const extension = file.name.includes(".") ? `.${file.name.split(".").pop()}` : "";
+      const fileKey = `${projectId}/${noteDate}/${createId("file")}${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(DAILY_UPLOADS_BUCKET)
+        .upload(fileKey, file, {
+          contentType: file.type || "application/octet-stream",
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { error: insertError } = await supabase.from("day_files").insert([
+        {
+          project_id: projectId,
+          note_date: noteDate,
+          bucket_id: DAILY_UPLOADS_BUCKET,
+          storage_path: fileKey,
+          file_name: file.name,
+          file_size: file.size,
+          content_type: file.type || "application/octet-stream",
+          uploaded_by: session?.user?.id ?? null,
+        },
+      ]);
+
+      if (insertError) {
+        await supabase.storage.from(DAILY_UPLOADS_BUCKET).remove([fileKey]);
+        throw insertError;
+      }
+    },
+    [selectedProjectId, session?.user?.id]
+  );
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -165,6 +310,7 @@ function App() {
       setProjects([]);
       setTasks([]);
       setSelectedProjectId(null);
+      setProjectDayEntries(new Map());
       setLoading(false); // Important: set loading to false if no session
       return;
     }
@@ -177,29 +323,42 @@ function App() {
           .from('projects')
           .select(
             "id, name, description, color, created_at, start_date, due_date, reference_id, cost, address, project_manager, user_id"
-          );
+          )
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: true });
 
         if (projectsError) throw projectsError;
-
-        const { data: tasksData, error: tasksError } = await supabase
-          .from('tasks')
-          .select(
-            "id, project_id, name, description, start_date, due_date, status, dependencies"
-          );
-
-        if (tasksError) throw tasksError;
 
         const mappedProjects = (projectsData ?? []).map((project) =>
           mapProjectFromRow(project as ProjectRow),
         );
-        const mappedTasks = (tasksData ?? []).map((task) =>
-          mapTaskFromRow(task as TaskRow),
-        );
+
+        let mappedTasks: Task[] = [];
+        if (mappedProjects.length > 0) {
+          const projectIds = mappedProjects.map((project) => project.id);
+          const { data: tasksData, error: tasksError } = await supabase
+            .from('tasks')
+            .select(
+              "id, project_id, name, description, start_date, due_date, status, dependencies"
+            )
+            .in('project_id', projectIds);
+
+          if (tasksError) throw tasksError;
+
+          mappedTasks = (tasksData ?? []).map((task) =>
+            mapTaskFromRow(task as TaskRow),
+          );
+        }
 
         setProjects(mappedProjects);
         setTasks(mappedTasks);
         if (mappedProjects.length > 0) {
-          setSelectedProjectId(mappedProjects[0].id);
+          setSelectedProjectId((prev) => {
+            if (prev && mappedProjects.some((project) => project.id === prev)) {
+              return prev;
+            }
+            return mappedProjects[0].id;
+          });
         } else {
           setSelectedProjectId(null); // No projects, so no selected project
         }
@@ -213,6 +372,12 @@ function App() {
 
     fetchProjectsAndTasks();
   }, [session]);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadDayEntries(selectedProjectId);
+    }
+  }, [selectedProjectId, loadDayEntries]);
 
   const handleSignOut = async () => {
     try {
@@ -529,97 +694,42 @@ function App() {
     }
   };
 
-  const handleAddFile = (date: string, file: File) => {
+  const handleAddFile = async (date: string, file: File) => {
     if (!selectedProjectId) return;
-
-    const id = createId("file");
-    const url = URL.createObjectURL(file);
-    objectUrls.current.set(id, url);
-    const addedAt = new Date().toISOString();
-    const newFile: DayFile = {
-      id,
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      addedAt,
-      url,
-    };
-
-    setProjectDayEntries((prev) => {
-      const newMap = new Map(prev);
-      const existing = newMap.get(selectedProjectId);
-      const projectDays = existing
-        ? existing.map((day) => ({ ...day, posts: day.posts ?? [] }))
-        : [];
-      const existingDayIndex = projectDays.findIndex((day) => day.date === date);
-
-      if (existingDayIndex > -1) {
-        const day = projectDays[existingDayIndex];
-        projectDays[existingDayIndex] = {
-          ...day,
-          files: [...day.files, newFile],
-        };
-      } else {
-        projectDays.push({
-          date,
-          files: [newFile],
-          posts: [],
-        });
-        projectDays.sort((a, b) => (a.date < b.date ? -1 : 1));
-      }
-      newMap.set(selectedProjectId, projectDays);
-      return newMap;
-    });
-  };
-
-  const handleRemoveFile = (date: string, fileId: string) => {
-    if (!selectedProjectId) return;
-
-    const url = objectUrls.current.get(fileId);
-    if (url) {
-      URL.revokeObjectURL(url);
-      objectUrls.current.delete(fileId);
+    try {
+      await uploadDayFile(date, file);
+      await loadDayEntries(selectedProjectId);
+    } catch (err: any) {
+      console.error("Error uploading file:", err);
+      setError(err.message || "Failed to upload file.");
     }
-
-    setProjectDayEntries((prev) => {
-      const newMap = new Map(prev);
-      const existing = newMap.get(selectedProjectId);
-      if (!existing) {
-        return newMap;
-      }
-      const projectDays = existing.map((day) => ({ ...day, posts: day.posts ?? [] }));
-      const existingDayIndex = projectDays.findIndex((day) => day.date === date);
-
-      if (existingDayIndex > -1) {
-        const day = projectDays[existingDayIndex];
-        const filteredFiles = day.files.filter((file) => file.id !== fileId);
-        const updatedPosts = day.posts
-          .map((post) => ({
-            ...post,
-            attachments: post.attachments.filter((attachment) => attachment.id !== fileId),
-          }))
-          .filter(
-            (post) => post.attachments.length > 0 || post.message.trim().length > 0,
-          );
-
-        const nextDay = {
-          ...day,
-          files: filteredFiles,
-          posts: updatedPosts,
-        };
-
-        if (nextDay.files.length === 0 && nextDay.posts.length === 0) {
-          projectDays.splice(existingDayIndex, 1);
-        } else {
-          projectDays[existingDayIndex] = nextDay;
-        }
-      }
-      newMap.set(selectedProjectId, projectDays);
-      return newMap;
-    });
   };
 
-  const handleCreatePost = (input: { message: string; file?: File | null }) => {
+  const handleRemoveFile = async (_date: string, fileId: string) => {
+    if (!selectedProjectId) return;
+
+    const projectDays = projectDayEntries.get(selectedProjectId) ?? [];
+    const entryWithFile = projectDays.find((entry) => entry.files.some((file) => file.id === fileId));
+    const fileMeta = entryWithFile?.files.find((file) => file.id === fileId);
+    const bucketId = fileMeta?.bucketId ?? DAILY_UPLOADS_BUCKET;
+    const storagePath = fileMeta?.storagePath;
+
+    try {
+      if (storagePath) {
+        await supabase.storage.from(bucketId).remove([storagePath]);
+      }
+      const { error: deleteError } = await supabase.from("day_files").delete().eq("id", fileId);
+      if (deleteError) {
+        throw deleteError;
+      }
+      await loadDayEntries(selectedProjectId);
+    } catch (err: any) {
+      console.error("Error removing file:", err);
+      setError(err.message || "Failed to remove file.");
+    }
+  };
+
+  const handleCreatePost = async (input: { message: string; file?: File | null }) => {
     if (!selectedProjectId) {
       return;
     }
@@ -631,61 +741,30 @@ function App() {
       return;
     }
 
-    const createdAt = new Date();
-    const isoCreatedAt = createdAt.toISOString();
-    const todayIso = toISODate(createdAt);
+    const todayIso = toISODate(new Date());
 
-    const attachments: DayFile[] = [];
-    if (attachmentFile) {
-      const fileId = createId("file");
-      const url = URL.createObjectURL(attachmentFile);
-      objectUrls.current.set(fileId, url);
-      attachments.push({
-        id: fileId,
-        name: attachmentFile.name,
-        size: attachmentFile.size,
-        type: attachmentFile.type,
-        addedAt: isoCreatedAt,
-        url,
-      });
-    }
-
-    const postId = createId("post");
-
-    setProjectDayEntries((prev) => {
-      const newMap = new Map(prev);
-      const existing = newMap.get(selectedProjectId);
-      const projectDays = existing
-        ? existing.map((day) => ({ ...day, posts: day.posts ?? [] }))
-        : [];
-      const existingDayIndex = projectDays.findIndex((day) => day.date === todayIso);
-
-      const post: DayEntry["posts"][number] = {
-        id: postId,
-        message: trimmedMessage,
-        createdAt: isoCreatedAt,
-        attachments,
-      };
-
-      if (existingDayIndex > -1) {
-        const day = projectDays[existingDayIndex];
-        projectDays[existingDayIndex] = {
-          ...day,
-          files: attachments.length > 0 ? [...day.files, ...attachments] : day.files,
-          posts: [...day.posts, post],
-        };
-      } else {
-        projectDays.push({
-          date: todayIso,
-          files: [...attachments],
-          posts: [post],
+    try {
+      if (trimmedMessage) {
+        const { error: insertError } = await supabase.from("notes").insert({
+          project_id: selectedProjectId,
+          note_date: todayIso,
+          body: trimmedMessage,
+          user_id: session?.user?.id ?? null,
         });
-        projectDays.sort((a, b) => (a.date < b.date ? -1 : 1));
+        if (insertError) {
+          throw insertError;
+        }
       }
 
-      newMap.set(selectedProjectId, projectDays);
-      return newMap;
-    });
+      if (attachmentFile) {
+        await uploadDayFile(todayIso, attachmentFile);
+      }
+
+      await loadDayEntries(selectedProjectId);
+    } catch (err: any) {
+      console.error("Error creating update:", err);
+      setError(err.message || "Failed to share update.");
+    }
   };
 
   if (loading) {

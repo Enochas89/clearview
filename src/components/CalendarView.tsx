@@ -11,9 +11,9 @@ type TaskReminder = {
 
 type CalendarViewProps = {
   days: DayEntry[];
-  onAddFile: (date: string, file: File) => void;
-  onRemoveFile: (date: string, fileId: string) => void;
-  onCreatePost: (input: { message: string; file?: File | null }) => void;
+  onAddFile: (date: string, file: File) => void | Promise<void>;
+  onRemoveFile: (date: string, fileId: string) => void | Promise<void>;
+  onCreatePost: (input: { message: string; file?: File | null }) => void | Promise<void>;
   recentActivities: DayActivity[];
   upcomingDueTasks: TaskReminder[];
 };
