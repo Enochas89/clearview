@@ -1,12 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CalendarView from "./components/CalendarView";
+import ChangeOrders from "./components/ChangeOrders";
 import GanttChart from "./components/GanttChart";
 import Sidebar from "./components/Sidebar";
-import { DayActivity, DayEntry, DayFile, Project, Task } from "./types";
+import {
+  ChangeOrder,
+  ChangeOrderLineItem,
+  ChangeOrderRecipient,
+  ChangeOrderRecipientStatus,
+  ChangeOrderStatus,
+  DayActivity,
+  DayEntry,
+  DayFile,
+  InviteMemberResult,
+  MemberRole,
+  Project,
+  ProjectMember,
+  Task,
+} from "./types";
 import "./App.css";
-import { supabase } from './supabaseClient';
-import Auth from './Auth';
-import { Session } from '@supabase/supabase-js';
+import { supabase } from "./supabaseClient";
+import Auth from "./Auth";
+import { Session } from "@supabase/supabase-js";
 
 const DAY_MS = 86_400_000;
 const DAILY_UPLOADS_BUCKET = "daily-uploads";
@@ -35,6 +50,74 @@ type TaskRow = {
   due_date: string | null;
   status: string | null;
   dependencies: string[] | null;
+};
+
+type ChangeOrderRow = {
+  id: string;
+  project_id: string;
+  subject: string | null;
+  body: string | null;
+  recipient_name: string | null;
+  recipient_email: string | null;
+  status: string | null;
+  sent_at: string | null;
+  updated_at: string | null;
+  response_at: string | null;
+  response_message: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  responded_by: string | null;
+  responded_by_name: string | null;
+  created_at: string | null;
+  line_items: any;
+  change_order_recipients?: any[];
+};
+
+const normalizeChangeOrderStatus = (status: string | null): ChangeOrderStatus => {
+  switch (status) {
+    case "approved":
+    case "approved_with_conditions":
+    case "denied":
+    case "needs_info":
+      return status;
+    case "needs-info":
+      return "needs_info";
+    case "approved-with-conditions":
+      return "approved_with_conditions";
+    default:
+      return "pending";
+  }
+};
+
+const normalizeRecipientStatus = (
+  status: string | null,
+): ChangeOrderRecipientStatus => {
+  switch (status) {
+    case "approved":
+    case "approved_with_conditions":
+    case "denied":
+    case "needs_info":
+      return status;
+    case "needs-info":
+      return "needs_info";
+    case "approved-with-conditions":
+      return "approved_with_conditions";
+    default:
+      return "pending";
+  }
+};
+
+type ProjectMemberRow = {
+  id: string;
+  project_id: string;
+  user_id: string | null;
+  email: string | null;
+  role: string | null;
+  status: string | null;
+  invited_by: string | null;
+  invited_at: string | null;
+  accepted_at: string | null;
+  full_name: string | null;
 };
 
 const mapProjectFromRow = (row: ProjectRow): Project => ({
@@ -112,6 +195,60 @@ const mapTaskUpdateToRow = (input: Partial<Task>) => ({
   ...(input.dependencies !== undefined ? { dependencies: input.dependencies } : {}),
 });
 
+const mapChangeOrderFromRow = (row: ChangeOrderRow): ChangeOrder => ({
+  id: row.id,
+  projectId: row.project_id,
+  subject: row.subject ?? "",
+  description: row.body ?? "",
+  recipientName: row.recipient_name ?? "",
+  recipientEmail: row.recipient_email ?? "",
+  status: normalizeChangeOrderStatus(row.status),
+  sentAt: row.sent_at ?? row.created_at ?? "",
+  updatedAt: row.updated_at ?? row.sent_at ?? row.created_at ?? "",
+  responseAt: row.response_at ?? null,
+  responseMessage: row.response_message ?? null,
+  createdBy: row.created_by ?? null,
+  createdByName: row.created_by_name ?? null,
+  respondedBy: row.responded_by ?? null,
+  respondedByName: row.responded_by_name ?? null,
+  lineItems: Array.isArray(row.line_items)
+    ? (row.line_items as any[]).map((item) => ({
+        id: typeof item?.id === "string" ? item.id : createId("item"),
+        title: typeof item?.title === "string" ? item.title : "",
+        description: typeof item?.description === "string" ? item.description : "",
+        impactDays: Number.isFinite(item?.impactDays) ? Number(item.impactDays) : 0,
+        cost: Number.isFinite(item?.cost) ? Number(item.cost) : 0,
+      }))
+    : [],
+  recipients: Array.isArray(row.change_order_recipients)
+    ? row.change_order_recipients.map((recipient: any) => ({
+        id: recipient.id,
+        changeOrderId: recipient.change_order_id ?? row.id,
+        email: recipient.email ?? "",
+        name: recipient.name ?? null,
+        status: normalizeRecipientStatus(recipient.status),
+        conditionNote: recipient.condition_note ?? null,
+        respondedAt: recipient.responded_at ?? null,
+      }))
+    : [],
+});
+
+const mapMemberFromRow = (row: ProjectMemberRow): ProjectMember => ({
+  id: row.id,
+  projectId: row.project_id,
+  userId: row.user_id,
+  email: row.email ?? "",
+  role:
+    row.role === "owner" || row.role === "editor" || row.role === "viewer"
+      ? row.role
+      : "viewer",
+  status: row.status === "accepted" ? "accepted" : "pending",
+  invitedBy: row.invited_by,
+  invitedAt: row.invited_at,
+  acceptedAt: row.accepted_at,
+  fullName: row.full_name,
+});
+
 const parseISODate = (value: string) => new Date(`${value}T00:00:00`);
 
 const differenceInDays = (start: Date, end: Date) => Math.round((end.getTime() - start.getTime()) / DAY_MS);
@@ -142,9 +279,12 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projectDayEntries, setProjectDayEntries] = useState<Map<string, DayEntry[]>>(new Map());
+  const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeMainTab, setActiveMainTab] = useState<"timeline" | "changeOrders">("timeline");
 
   const loadDayEntries = useCallback(
     async (projectId: string) => {
@@ -309,6 +449,75 @@ function App() {
     [session, setProjectDayEntries, setError]
   );
 
+const loadChangeOrders = useCallback(
+  async (projectId: string) => {
+    try {
+      const { data, error: changeOrdersError } = await supabase
+        .from("change_orders")
+        .select(
+          "id, project_id, subject, body, recipient_name, recipient_email, status, sent_at, updated_at, response_at, response_message, created_by, created_by_name, responded_by, responded_by_name, created_at, line_items, change_order_recipients(id, change_order_id, email, name, status, condition_note, responded_at)"
+        )
+        .eq("project_id", projectId)
+        .order("sent_at", { ascending: false });
+
+      if (changeOrdersError) throw changeOrdersError;
+
+      const mapped = (data ?? []).map((row) => mapChangeOrderFromRow(row as ChangeOrderRow));
+      setChangeOrders((prev) => {
+        if (selectedProjectId && selectedProjectId !== projectId) {
+          return prev;
+        }
+        return mapped;
+      });
+    } catch (err: any) {
+      console.error("Error loading change orders:", err);
+      setError((prev) => prev ?? err.message ?? "Failed to load change orders.");
+    }
+  },
+  [selectedProjectId]
+);
+
+const loadProjectMembers = useCallback(
+  async (projectId: string) => {
+    try {
+      const { data, error: membersError } = await supabase
+        .from("project_members")
+        .select(
+          "id, project_id, user_id, email, role, status, invited_by, invited_at, accepted_at, full_name"
+        )
+        .eq("project_id", projectId)
+        .order("invited_at", { ascending: true });
+
+      if (membersError) throw membersError;
+
+      const mapped = (data ?? []).map((row) => mapMemberFromRow(row as ProjectMemberRow));
+      setProjectMembers((prev) => {
+        if (selectedProjectId && selectedProjectId !== projectId) {
+          return prev;
+        }
+        return mapped;
+      });
+    } catch (err: any) {
+      console.error("Error loading project members:", err);
+      setError((prev) => prev ?? err.message ?? "Failed to load project members.");
+    }
+  },
+  [selectedProjectId]
+);
+
+const notifyChangeOrder = useCallback(
+  async (input: { changeOrderId: string; event: "created" | "status"; status?: ChangeOrderStatus }) => {
+    try {
+      await supabase.functions.invoke("send-change-order-email", {
+        body: input,
+      });
+    } catch (notificationError) {
+      console.error("Error sending change order notification:", notificationError);
+    }
+  },
+  []
+);
+
   const uploadDayFile = useCallback(
     async (noteDate: string, file: File, options?: { noteId?: string | null }) => {
       if (!selectedProjectId) {
@@ -362,9 +571,13 @@ function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        setSession(session);
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -376,12 +589,14 @@ function App() {
       setTasks([]);
       setSelectedProjectId(null);
       setProjectDayEntries(new Map());
+      setChangeOrders([]);
+      setProjectMembers([]);
+      setActiveMainTab("timeline");
       setLoading(false); // Important: set loading to false if no session
       return;
     }
 
     const fetchProjectsAndTasks = async () => {
-      setLoading(true);
       setError(null);
       try {
         const { data: projectsData, error: projectsError } = await supabase
@@ -441,8 +656,13 @@ function App() {
   useEffect(() => {
     if (selectedProjectId) {
       loadDayEntries(selectedProjectId);
+      loadChangeOrders(selectedProjectId);
+      loadProjectMembers(selectedProjectId);
+    } else {
+      setChangeOrders([]);
+      setProjectMembers([]);
     }
-  }, [selectedProjectId, loadDayEntries]);
+  }, [selectedProjectId, loadDayEntries, loadChangeOrders, loadProjectMembers]);
 
   const handleSignOut = async () => {
     try {
@@ -465,12 +685,20 @@ function App() {
     return tasks.filter((task) => task.projectId === selectedProjectId);
   }, [selectedProjectId, tasks]);
 
+  const activeProject = useMemo(
+    () =>
+      selectedProjectId
+        ? projects.find((project) => project.id === selectedProjectId) ?? null
+        : null,
+    [selectedProjectId, projects],
+  );
+
   const visibleDays = useMemo(() => {
     if (!selectedProjectId) {
       return [];
     }
 
-    const selectedProject = projects.find((p) => p.id === selectedProjectId);
+    const selectedProject = activeProject;
     const projectTasks = tasks.filter((task) => task.projectId === selectedProjectId);
     const projectDays = projectDayEntries.get(selectedProjectId) ?? [];
 
@@ -533,7 +761,7 @@ function App() {
         posts: existingDay?.posts ?? [],
       };
     });
-  }, [selectedProjectId, tasks, projectDayEntries, projects]);
+  }, [selectedProjectId, tasks, projectDayEntries, activeProject]);
 
   const upcomingTaskReminders = useMemo<TaskReminder[]>(() => {
     if (!selectedProjectId) {
@@ -575,6 +803,13 @@ function App() {
       )
       .slice(0, 5);
   }, [selectedProjectId, tasks]);
+
+  const membersForSelectedProject = useMemo(() => {
+    if (!selectedProjectId) {
+      return [];
+    }
+    return projectMembers.filter((member) => member.projectId === selectedProjectId);
+  }, [projectMembers, selectedProjectId]);
 
   const recentActivities = useMemo<DayActivity[]>(() => {
     if (!selectedProjectId) {
@@ -856,6 +1091,413 @@ function App() {
     }
   };
 
+  const handleUpdatePost = async (postId: string, message: string) => {
+    if (!selectedProjectId) {
+      return;
+    }
+
+    try {
+      setError(null);
+      const trimmed = message.trim();
+      const { error: updateError } = await supabase
+        .from("notes")
+        .update({ body: trimmed })
+        .eq("id", postId)
+        .eq("project_id", selectedProjectId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      await loadDayEntries(selectedProjectId);
+    } catch (err: any) {
+      console.error("Error updating post:", err);
+      setError(err.message || "Failed to update post.");
+      throw err;
+    }
+  };
+
+  const handleDeletePost = async (postId: string, attachments: DayFile[]) => {
+    if (!selectedProjectId) {
+      return;
+    }
+
+    try {
+      setError(null);
+
+      const attachmentIds = attachments.map((attachment) => attachment.id);
+      if (attachmentIds.length > 0) {
+        const bucketMap = new Map<string, string[]>();
+        attachments.forEach((attachment) => {
+          const storagePath = attachment.storagePath;
+          if (!storagePath) {
+            return;
+          }
+          const bucketId = attachment.bucketId ?? DAILY_UPLOADS_BUCKET;
+          if (!bucketMap.has(bucketId)) {
+            bucketMap.set(bucketId, []);
+          }
+          bucketMap.get(bucketId)!.push(storagePath);
+        });
+
+        for (const [bucketId, paths] of bucketMap) {
+          if (paths.length === 0) continue;
+          const { error: storageError } = await supabase.storage.from(bucketId).remove(paths);
+          if (storageError) {
+            throw storageError;
+          }
+        }
+
+        const { error: attachmentsError } = await supabase
+          .from("day_files")
+          .delete()
+          .in("id", attachmentIds);
+
+        if (attachmentsError) {
+          throw attachmentsError;
+        }
+      }
+
+      const { error: deleteError } = await supabase
+        .from("notes")
+        .delete()
+        .eq("id", postId)
+        .eq("project_id", selectedProjectId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      await loadDayEntries(selectedProjectId);
+    } catch (err: any) {
+      console.error("Error deleting post:", err);
+      setError(err.message || "Failed to delete post.");
+      throw err;
+    }
+  };
+
+  const handleCreateChangeOrder = async (input: {
+    subject: string;
+    description: string;
+    recipientName: string;
+    recipientEmail: string;
+    lineItems: ChangeOrderLineItem[];
+    recipients: Array<{ email: string; name?: string | null }>;
+  }) => {
+    if (!selectedProjectId) {
+      throw new Error("No project selected");
+    }
+
+    try {
+      setError(null);
+      const nowIso = new Date().toISOString();
+      const { data, error: insertError } = await supabase
+        .from("change_orders")
+        .insert([
+          {
+            id: createId("change"),
+            project_id: selectedProjectId,
+            subject: input.subject.trim(),
+            body: input.description.trim(),
+            recipient_name: input.recipientName.trim() || null,
+            recipient_email: input.recipientEmail.trim(),
+            status: "pending",
+            sent_at: nowIso,
+            updated_at: nowIso,
+            response_at: null,
+            response_message: null,
+            created_by: session?.user?.id ?? null,
+            created_by_name: session?.user?.user_metadata?.full_name ?? session?.user?.email ?? null,
+            responded_by: null,
+            responded_by_name: null,
+            line_items: JSON.stringify(input.lineItems ?? []),
+          },
+        ])
+        .select(
+          "id, project_id, subject, body, recipient_name, recipient_email, status, sent_at, updated_at, response_at, response_message, created_by, created_by_name, responded_by, responded_by_name, created_at, line_items"
+        )
+        .single();
+
+      if (insertError) throw insertError;
+
+      const inserted = data as ChangeOrderRow;
+
+      const recipientRows = (input.recipients ?? [])
+        .map((recipient) => {
+          const email = recipient.email?.trim().toLowerCase();
+          if (!email) {
+            return null;
+          }
+          return {
+            change_order_id: inserted.id,
+            email,
+            name: recipient.name?.trim() || null,
+          };
+        })
+        .filter(Boolean) as Array<{ change_order_id: string; email: string; name: string | null }>;
+
+      if (recipientRows.length > 0) {
+        const { error: recipientsError } = await supabase
+          .from("change_order_recipients")
+          .insert(recipientRows);
+        if (recipientsError) {
+          throw recipientsError;
+        }
+      }
+
+      await notifyChangeOrder({ changeOrderId: inserted.id, event: "created" });
+
+      if (selectedProjectId) {
+        await loadChangeOrders(selectedProjectId);
+      }
+    } catch (err: any) {
+      console.error("Error creating change order:", err);
+      setError(err.message || "Failed to create change order.");
+      throw err;
+    }
+  };
+
+  const handleEditChangeOrder = async (
+    orderId: string,
+    input: {
+      subject: string;
+      description: string;
+      recipientName: string;
+      recipientEmail: string;
+      lineItems: ChangeOrderLineItem[];
+      recipients: Array<{ id?: string; email: string; name?: string | null }>;
+    }
+  ) => {
+    try {
+      setError(null);
+      const nowIso = new Date().toISOString();
+      const { data, error: updateError } = await supabase
+        .from("change_orders")
+        .update({
+          subject: input.subject.trim(),
+          body: input.description.trim(),
+          recipient_name: input.recipientName.trim() || null,
+          recipient_email: input.recipientEmail.trim(),
+          updated_at: nowIso,
+          line_items: JSON.stringify(input.lineItems ?? []),
+        })
+        .eq("id", orderId)
+        .select(
+          "id, project_id, subject, body, recipient_name, recipient_email, status, sent_at, updated_at, response_at, response_message, created_by, created_by_name, responded_by, responded_by_name, created_at, line_items"
+        )
+        .single();
+
+      if (updateError) throw updateError;
+
+      const normalizedRecipients = (input.recipients ?? [])
+        .map((recipient) => {
+          const email = recipient.email?.trim().toLowerCase();
+          if (!email) {
+            return null;
+          }
+          return {
+            change_order_id: orderId,
+            email,
+            name: recipient.name?.trim() || null,
+          };
+        })
+        .filter(Boolean) as Array<{ change_order_id: string; email: string; name: string | null }>;
+
+      await supabase
+        .from("change_order_recipients")
+        .delete()
+        .eq("change_order_id", orderId);
+
+      if (normalizedRecipients.length > 0) {
+        const { error: upsertError } = await supabase
+          .from("change_order_recipients")
+          .insert(normalizedRecipients);
+        if (upsertError) {
+          throw upsertError;
+        }
+        await notifyChangeOrder({ changeOrderId: orderId, event: "status" });
+      }
+
+      if (selectedProjectId) {
+        await loadChangeOrders(selectedProjectId);
+      }
+    } catch (err: any) {
+      console.error("Error updating change order:", err);
+      setError(err.message || "Failed to update change order.");
+      throw err;
+    }
+  };
+
+  const handleDeleteChangeOrder = async (orderId: string) => {
+    try {
+      setError(null);
+      const { error: deleteError } = await supabase
+        .from("change_orders")
+        .delete()
+        .eq("id", orderId);
+
+      if (deleteError) throw deleteError;
+
+      setChangeOrders((prev) => prev.filter((order) => order.id !== orderId));
+    } catch (err: any) {
+      console.error("Error deleting change order:", err);
+      setError(err.message || "Failed to delete change order.");
+      throw err;
+    }
+  };
+
+  const handleChangeOrderStatus = async (
+    orderId: string,
+    status: ChangeOrderStatus,
+    options?: { responseMessage?: string | null }
+  ) => {
+    try {
+      setError(null);
+      const nowIso = new Date().toISOString();
+      const responseMessage = options?.responseMessage ?? null;
+      const payload: Record<string, string | null> = {
+        status,
+        updated_at: nowIso,
+        response_message: responseMessage,
+        response_at: status === "pending" ? null : nowIso,
+        responded_by: status === "pending" ? null : session?.user?.id ?? null,
+        responded_by_name:
+          status === "pending"
+            ? null
+            : session?.user?.user_metadata?.full_name ?? session?.user?.email ?? null,
+      };
+
+      const { data, error: updateError } = await supabase
+        .from("change_orders")
+        .update(payload)
+        .eq("id", orderId)
+        .select(
+          "id, project_id, subject, body, recipient_name, recipient_email, status, sent_at, updated_at, response_at, response_message, created_by, created_by_name, responded_by, responded_by_name, created_at, line_items"
+        )
+        .single();
+
+      if (updateError) throw updateError;
+
+      const updated = mapChangeOrderFromRow(data as ChangeOrderRow);
+      setChangeOrders((prev) =>
+        prev.map((order) => (order.id === orderId ? updated : order)),
+      );
+      if (status !== "pending") {
+        await notifyChangeOrder({ changeOrderId: updated.id, event: "status", status });
+      }
+      if (selectedProjectId) {
+        await loadChangeOrders(selectedProjectId);
+      }
+    } catch (err: any) {
+      console.error("Error updating change order status:", err);
+      setError(err.message || "Failed to update change order status.");
+      throw err;
+    }
+  };
+
+  const handleInviteMember = async (input: {
+    projectId: string;
+    email: string;
+    role: MemberRole;
+    name: string;
+  }): Promise<InviteMemberResult | undefined> => {
+    if (!session) {
+      setError("You must be signed in to invite a member.");
+      return undefined;
+    }
+
+    const normalizedEmail = input.email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError("A valid email address is required.");
+      return undefined;
+    }
+
+    if (
+      projectMembers.some(
+        (member) =>
+          member.projectId === input.projectId &&
+          member.email.toLowerCase() === normalizedEmail
+      )
+    ) {
+      setError("That email address is already associated with this project.");
+      return undefined;
+    }
+
+    const displayName = input.name.trim();
+
+    try {
+      setError(null);
+      const { data, error: insertError } = await supabase
+        .from("project_members")
+        .insert([
+          {
+            project_id: input.projectId,
+            email: normalizedEmail,
+            role: input.role,
+            status: "pending",
+            invited_by: session.user.id ?? null,
+            invited_at: new Date().toISOString(),
+            full_name: displayName || null,
+          },
+        ])
+        .select(
+          "id, project_id, user_id, email, role, status, invited_by, invited_at, accepted_at, full_name"
+        )
+        .single();
+
+      if (insertError) throw insertError;
+
+      const inserted = mapMemberFromRow(data as ProjectMemberRow);
+      setProjectMembers((prev) => [...prev, inserted]);
+      return { member: inserted };
+    } catch (err: any) {
+      console.error("Error inviting member:", err);
+      setError(err.message || "Failed to invite project member.");
+      return undefined;
+    }
+  };
+
+  const handleUpdateMemberRole = async (memberId: string, role: MemberRole) => {
+    try {
+      setError(null);
+      const { data, error: updateError } = await supabase
+        .from("project_members")
+        .update({ role })
+        .eq("id", memberId)
+        .select(
+          "id, project_id, user_id, email, role, status, invited_by, invited_at, accepted_at, full_name"
+        )
+        .single();
+
+      if (updateError) throw updateError;
+
+      const updated = mapMemberFromRow(data as ProjectMemberRow);
+      setProjectMembers((prev) =>
+        prev.map((member) => (member.id === memberId ? updated : member))
+      );
+    } catch (err: any) {
+      console.error("Error updating member role:", err);
+      setError(err.message || "Failed to update member role.");
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    try {
+      setError(null);
+      const { error: deleteError } = await supabase
+        .from("project_members")
+        .delete()
+        .eq("id", memberId);
+
+      if (deleteError) throw deleteError;
+
+      setProjectMembers((prev) => prev.filter((member) => member.id !== memberId));
+    } catch (err: any) {
+      console.error("Error removing member:", err);
+      setError(err.message || "Failed to remove member.");
+    }
+  };
+
   if (loading) {
     return <div className="app-shell">Loading...</div>;
   }
@@ -874,30 +1516,74 @@ function App() {
         <Sidebar
           projects={projects}
           selectedProjectId={selectedProjectId}
+          members={membersForSelectedProject}
+          currentUserId={session.user.id}
+          currentUserEmail={session.user.email ?? null}
+          memberInviteFallback
           onSelectProject={setSelectedProjectId}
           onCreateProject={handleCreateProject}
           onUpdateProject={handleUpdateProject}
           onDeleteProject={handleDeleteProject}
+          onInviteMember={handleInviteMember}
+          onUpdateMemberRole={handleUpdateMemberRole}
+          onRemoveMember={handleRemoveMember}
           onSignOut={handleSignOut}
         />
         <main className="app__main">
           {projects.length > 0 ? (
             <>
-              <CalendarView
-                days={visibleDays}
-                onAddFile={handleAddFile}
-                onRemoveFile={handleRemoveFile}
-                onCreatePost={handleCreatePost}
-                recentActivities={recentActivities}
-                upcomingDueTasks={upcomingTaskReminders}
-              />
-              <GanttChart
-                tasks={visibleTasks}
-                projects={projects}
-                selectedProjectId={selectedProjectId}
-                onCreateTask={handleCreateTask}
-                onUpdateTask={handleUpdateTask}
-              />
+              <div className="app__tabs" role="tablist" aria-label="Workspace view">
+                <button
+                  type="button"
+                  className={`app__tab${activeMainTab === "timeline" ? " is-active" : ""}`}
+                  role="tab"
+                  aria-selected={activeMainTab === "timeline"}
+                  onClick={() => setActiveMainTab("timeline")}
+                >
+                  Timeline
+                </button>
+                <button
+                  type="button"
+                  className={`app__tab${activeMainTab === "changeOrders" ? " is-active" : ""}`}
+                  role="tab"
+                  aria-selected={activeMainTab === "changeOrders"}
+                  onClick={() => setActiveMainTab("changeOrders")}
+                >
+                  Change Orders
+                </button>
+              </div>
+              {activeMainTab === "timeline" ? (
+                <>
+                  <CalendarView
+                    activeProjectId={selectedProjectId}
+                    days={visibleDays}
+                    onAddFile={handleAddFile}
+                    onRemoveFile={handleRemoveFile}
+                    onCreatePost={handleCreatePost}
+                    onUpdatePost={handleUpdatePost}
+                    onDeletePost={handleDeletePost}
+                    recentActivities={recentActivities}
+                    upcomingDueTasks={upcomingTaskReminders}
+                  />
+                  <GanttChart
+                    tasks={visibleTasks}
+                    projects={projects}
+                    selectedProjectId={selectedProjectId}
+                    onCreateTask={handleCreateTask}
+                    onUpdateTask={handleUpdateTask}
+                  />
+                </>
+              ) : (
+                <ChangeOrders
+                  project={activeProject}
+                  orders={changeOrders}
+                  onCreate={handleCreateChangeOrder}
+                  onEdit={handleEditChangeOrder}
+                  onDelete={handleDeleteChangeOrder}
+                  onChangeStatus={handleChangeOrderStatus}
+                  isLoading={loading}
+                />
+              )}
             </>
           ) : (
             <div className="app__empty-state">

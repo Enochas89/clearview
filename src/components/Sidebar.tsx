@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Project } from "../types";
 import logo from '../assets/logo.png';
 
@@ -26,6 +26,7 @@ const emptyProjectForm: ProjectFormState = {
   dueDate: "",
 };
 
+const PROJECT_FORM_DRAFT_KEY = "projectFormDraft";
 const Sidebar = ({
   projects,
   selectedProjectId,
@@ -35,9 +36,45 @@ const Sidebar = ({
   onDeleteProject,
   onSignOut,
 }: SidebarProps) => {
-  const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
+  const readStoredProjectForm = (): ProjectFormState | null => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    try {
+      const raw = window.localStorage.getItem(PROJECT_FORM_DRAFT_KEY);
+      if (!raw) {
+        return null;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") {
+        return null;
+      }
+      return {
+        ...emptyProjectForm,
+        ...parsed,
+      };
+    } catch (error) {
+      console.error("Error reading project draft:", error);
+      return null;
+    }
+  };
+  const [projectForm, setProjectForm] = useState<ProjectFormState>(() => readStoredProjectForm() ?? emptyProjectForm);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isProjectFormOpen || editingProjectId) {
+      return;
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(PROJECT_FORM_DRAFT_KEY, JSON.stringify(projectForm));
+    } catch (error) {
+      console.error("Error saving project draft:", error);
+    }
+  }, [projectForm, isProjectFormOpen, editingProjectId]);
 
   const resetProjectForm = () => {
     setProjectForm(emptyProjectForm);
