@@ -2862,6 +2862,9 @@ a.calendar__post-menu-item {
 }
 
 .calendar__post-attachment--image {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   border-style: solid;
   background: rgba(37, 99, 235, 0.08);
 }
@@ -3891,3 +3894,20 @@ a.calendar__post-menu-item {
 .auth-actions button {
   flex: 1;
 }
+
+
+.calendar__post-attachment--image .calendar__post-thumb {
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  border-radius: 16px;
+  display: block;
+}
+
+.calendar__post-attachment--image .calendar__post-thumb img {
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  display: block;
+}
+

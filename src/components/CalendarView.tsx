@@ -727,7 +727,7 @@ const CalendarView = ({ activeProjectId,
                               <>
                                 <div className="calendar__recent-thumb">
                                   {attachment.url ? (
-                                    <img src={attachment.url} alt={attachment.name} />
+                                    <img src={attachment.url} alt={attachment.name} loading="lazy" />
                                   ) : (
                                     <span className="calendar__recent-thumb-fallback" />
                                   )}
@@ -844,7 +844,7 @@ const CalendarView = ({ activeProjectId,
                                 <>
                                   <div className="calendar__post-thumb" aria-hidden="true">
                                     {attachment.url ? (
-                                      <img src={attachment.url} alt={attachment.name} />
+                                      <img src={attachment.url} alt={attachment.name} loading="lazy" />
                                     ) : (
                                       <span className="calendar__post-thumb-fallback" />
                                     )}
@@ -1058,3 +1058,4 @@ const CalendarView = ({ activeProjectId,
 };
 
 export default CalendarView;
+
