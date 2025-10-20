@@ -3752,9 +3752,18 @@ a.calendar__post-menu-item {
   }
 
   .calendar__recent-row {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     align-items: flex-start;
     gap: 8px;
+  }
+
+  .calendar__recent-info {
+    flex: 1 1 auto;
+  }
+
+  .calendar__post-menu-wrapper {
+    margin-left: auto;
   }
 }
 

@@ -542,6 +542,13 @@ const notifyChangeOrder = useCallback(
         throw uploadError;
       }
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const sessionUserId = session?.user?.id ?? sessionData.session?.user?.id ?? null;
+      if (!sessionUserId) {
+        await supabase.storage.from(DAILY_UPLOADS_BUCKET).remove([fileKey]);
+        throw new Error("You must be signed in to upload files.");
+      }
+
       const { data: insertedFiles, error: insertError } = await supabase
         .from("day_files")
         .insert([
@@ -553,7 +560,7 @@ const notifyChangeOrder = useCallback(
             file_name: file.name,
             file_size: file.size,
             content_type: file.type || "application/octet-stream",
-            uploaded_by: session?.user?.id ?? null,
+            uploaded_by: sessionUserId,
             note_id: options?.noteId ?? null,
           },
         ])
