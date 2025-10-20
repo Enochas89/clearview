@@ -374,18 +374,22 @@ function App() {
         });
 
         const signedUrlMap = new Map<string, string>();
-        for (const [bucketId, paths] of bucketGroups) {
+        for (const [bucketId, paths] of Array.from(bucketGroups.entries())) {
           if (paths.length === 0) continue;
           const { data, error: signedUrlError } = await supabase.storage.from(bucketId).createSignedUrls(paths, 60 * 60);
           if (signedUrlError) {
             console.error("Error creating signed URLs:", signedUrlError);
             continue;
           }
-          data?.forEach((item) => {
-            if (item.signedUrl) {
-              signedUrlMap.set(item.path, item.signedUrl);
-            }
-          });
+          if (Array.isArray(data)) {
+            data.forEach((item) => {
+              const path = item?.path ?? null;
+              const signedUrl = item?.signedUrl ?? null;
+              if (path && signedUrl) {
+                signedUrlMap.set(path, signedUrl);
+              }
+            });
+          }
         }
 
         fileRowsSafe.forEach((file) => {
