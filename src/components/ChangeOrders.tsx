@@ -114,6 +114,31 @@ const createEmptyForm = (): ChangeOrderFormState => ({
   recipients: [createEmptyRecipientDraft()],
 });
 
+const countRecipientDrafts = (
+  primaryEmail: string,
+  recipients: ChangeOrderRecipientDraft[],
+) => {
+  const unique = new Set<string>();
+  const track = (value?: string | null) => {
+    const email = value?.trim().toLowerCase();
+    if (email) {
+      unique.add(email);
+    }
+  };
+  track(primaryEmail);
+  recipients.forEach((recipient) => track(recipient.email));
+  return unique.size;
+};
+
+const countLineItemDrafts = (items: ChangeOrderLineItemDraft[]) =>
+  items.filter(
+    (item) =>
+      item.title.trim() ||
+      item.description.trim() ||
+      item.impactDays.trim() ||
+      item.cost.trim(),
+  ).length;
+
 const normalizeLineItems = (
   items: ChangeOrderLineItemDraft[],
 ): ChangeOrderLineItem[] =>
@@ -241,7 +266,6 @@ const ChangeOrders = ({
   isLoading = false,
 }: ChangeOrdersProps) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isResponseOpen, setIsResponseOpen] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
@@ -269,6 +293,22 @@ const ChangeOrders = ({
   );
   const editTotalCost = useMemo(
     () => calculateTotalCost(editForm.lineItems),
+    [editForm.lineItems],
+  );
+  const createRecipientCount = useMemo(
+    () => countRecipientDrafts(createForm.recipientEmail, createForm.recipients),
+    [createForm.recipientEmail, createForm.recipients],
+  );
+  const editRecipientCount = useMemo(
+    () => countRecipientDrafts(editForm.recipientEmail, editForm.recipients),
+    [editForm.recipientEmail, editForm.recipients],
+  );
+  const createLineItemCount = useMemo(
+    () => countLineItemDrafts(createForm.lineItems),
+    [createForm.lineItems],
+  );
+  const editLineItemCount = useMemo(
+    () => countLineItemDrafts(editForm.lineItems),
     [editForm.lineItems],
   );
 
@@ -385,10 +425,10 @@ const ChangeOrders = ({
     }));
   };
 
-  const openCreateModal = () => {
+  const resetCreateForm = () => {
     setCreateForm(createEmptyForm());
     setCreateError(null);
-    setIsCreateOpen(true);
+    setIsSubmitting(false);
   };
 
   const openEditModal = (order: ChangeOrder) => {
@@ -422,12 +462,6 @@ const ChangeOrders = ({
     });
     setEditError(null);
     setIsEditOpen(true);
-  };
-
-  const closeCreateModal = () => {
-    setIsCreateOpen(false);
-    setCreateError(null);
-    setIsSubmitting(false);
   };
 
   const closeEditModal = () => {
@@ -474,7 +508,7 @@ const ChangeOrders = ({
           recipients: recipientPayload,
         }),
       );
-      closeCreateModal();
+      resetCreateForm();
     } catch (err: any) {
       console.error("Error creating change order:", err);
       setCreateError(err?.message ?? "Failed to create change order.");
@@ -567,111 +601,165 @@ const ChangeOrders = ({
     setIsResponseOpen(true);
   };
 
+  const renderSummaryCard = (
+    mode: "create" | "edit",
+    recipientCount: number,
+    lineItemCount: number,
+    totalCost: number,
+  ) => {
+    const isCreate = mode === "create";
+    const heading = isCreate ? "Send overview" : "Update overview";
+    const description = isCreate
+      ? "We’ll email every recipient with an approval link once you send this change order."
+      : "Recipients are notified about the latest details as soon as you save.";
+    const projectLabel = project
+      ? [project.name, project.referenceId].filter(Boolean).join(" • ")
+      : "Workspace change order";
+    const checklist = isCreate
+      ? [
+          "Primary contact receives the change order immediately.",
+          "Each recipient can approve, deny, or request more info from their email.",
+          "Attachments stay organized on the project timeline.",
+        ]
+      : [
+          "Keep the project team aligned with the latest scope and pricing.",
+          "Recipients see updated details and status instantly.",
+          "Track responses from the Change Orders dashboard.",
+        ];
+
+    return (
+      <div className="change-order-summary-card">
+        <div className="change-order-summary-card__header">
+          <h4>{heading}</h4>
+          <span className="change-order-summary-card__project">{projectLabel}</span>
+        </div>
+        <div className="change-order-summary-card__metrics">
+          <div className="change-order-summary-card__metric">
+            <span className="change-order-summary-card__label">Recipients</span>
+            <strong>{recipientCount}</strong>
+          </div>
+          <div className="change-order-summary-card__metric">
+            <span className="change-order-summary-card__label">Line items</span>
+            <strong>{lineItemCount}</strong>
+          </div>
+        </div>
+        <div className="change-order-summary change-order-summary--card">
+          <span>Estimated total</span>
+          <strong>{currencyFormatter.format(totalCost)}</strong>
+        </div>
+        <p className="change-order-summary-card__description">{description}</p>
+        <ul className="change-order-summary-card__checklist">
+          {checklist.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
   const renderLineItemFields = (
     form: ChangeOrderFormState,
     formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>,
   ) => {
-    const total = calculateTotalCost(form.lineItems);
     return (
       <div className="change-order-line-items">
-        <div className="change-order-line-items__header">
+        <div className="change-order-line-items__toolbar">
           <h4>Line items</h4>
           <button
             type="button"
             className="change-order-line-items__add"
-          onClick={() => addLineItem(formSetter)}
-        >
-          Add line item
-        </button>
-      </div>
-      {form.lineItems.map((item, index) => (
-        <div key={item.id} className="change-order-line-item">
-          <div className="change-order-line-item__field">
-            <label>
-              Item
-              <input
-                value={item.title}
-                onChange={(event) =>
-                  handleLineItemChange(
-                    formSetter,
-                    item.id,
-                    "title",
-                    event.target.value,
-                  )
-                }
-                placeholder={`Item ${index + 1}`}
-              />
-            </label>
-          </div>
-          <div className="change-order-line-item__field change-order-line-item__field--description">
-            <label>
-              Description
-              <textarea
-                value={item.description}
-                onChange={(event) =>
-                  handleLineItemChange(
-                    formSetter,
-                    item.id,
-                    "description",
-                    event.target.value,
-                  )
-                }
-                rows={2}
-                placeholder="Explain the change"
-              />
-            </label>
-          </div>
-          <div className="change-order-line-item__inline">
-            <label>
-              Impact (days)
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={item.impactDays}
-                onChange={(event) =>
-                  handleLineItemChange(
-                    formSetter,
-                    item.id,
-                    "impactDays",
-                    event.target.value,
-                  )
-                }
-              />
-            </label>
-            <label>
-              Cost
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={item.cost}
-                onChange={(event) =>
-                  handleLineItemChange(
-                    formSetter,
-                    item.id,
-                    "cost",
-                    event.target.value,
-                  )
-                }
-              />
-            </label>
-            <button
-              type="button"
-              className="change-order-line-item__remove"
-              onClick={() => removeLineItem(formSetter, item.id)}
-              aria-label="Remove line item"
-            >
-              Remove
-            </button>
-          </div>
+            onClick={() => addLineItem(formSetter)}
+          >
+            Add line item
+          </button>
         </div>
-      ))}
-      <div className="change-order-line-items__total">
-        <span>Total</span>
-        <span>{currencyFormatter.format(total)}</span>
+        <div className="change-order-line-items__grid">
+          <div className="change-order-line-items__grid-head" aria-hidden="true">
+            <span>Item</span>
+            <span>Description</span>
+            <span>Impact (days)</span>
+            <span>Cost</span>
+            <span />
+          </div>
+          {form.lineItems.map((item, index) => (
+            <div key={item.id} className="change-order-line-items__grid-row">
+              <label className="change-order-line-items__cell">
+                <span className="change-order-line-items__cell-title">Item</span>
+                <input
+                  value={item.title}
+                  onChange={(event) =>
+                    handleLineItemChange(
+                      formSetter,
+                      item.id,
+                      "title",
+                      event.target.value,
+                    )
+                  }
+                  placeholder={`Item ${index + 1}`}
+                />
+              </label>
+              <label className="change-order-line-items__cell change-order-line-items__cell--description">
+                <span className="change-order-line-items__cell-title">Description</span>
+                <textarea
+                  value={item.description}
+                  onChange={(event) =>
+                    handleLineItemChange(
+                      formSetter,
+                      item.id,
+                      "description",
+                      event.target.value,
+                    )
+                  }
+                  rows={2}
+                  placeholder="Explain the change"
+                />
+              </label>
+              <label className="change-order-line-items__cell change-order-line-items__cell--number">
+                <span className="change-order-line-items__cell-title">Impact (days)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={item.impactDays}
+                  onChange={(event) =>
+                    handleLineItemChange(
+                      formSetter,
+                      item.id,
+                      "impactDays",
+                      event.target.value,
+                    )
+                  }
+                />
+              </label>
+              <label className="change-order-line-items__cell change-order-line-items__cell--number">
+                <span className="change-order-line-items__cell-title">Cost</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.cost}
+                  onChange={(event) =>
+                    handleLineItemChange(
+                      formSetter,
+                      item.id,
+                      "cost",
+                      event.target.value,
+                    )
+                  }
+                />
+              </label>
+              <button
+                type="button"
+                className="change-order-line-item__remove"
+                onClick={() => removeLineItem(formSetter, item.id)}
+                aria-label={`Remove line item ${index + 1}`}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
     );
   };
 
@@ -744,13 +832,13 @@ const ChangeOrders = ({
   return (
     <section className="change-orders">
       <header className="change-orders__header">
-        <div>
-          <h2>Change Orders</h2>
-          <p>Send, track, and approve change requests for this project.</p>
+        <div className="change-orders__title">
+          <span className="change-orders__badge" aria-hidden="true">✦</span>
+          <div>
+            <h2>Change Orders</h2>
+            <p>Send, track, and approve change requests for this project.</p>
+          </div>
         </div>
-        <button type="button" className="change-orders__primary" onClick={openCreateModal}>
-          New Change Order
-        </button>
       </header>
       <div className="change-orders__context">
         {project ? (
@@ -762,14 +850,99 @@ const ChangeOrders = ({
         )}
       </div>
 
-      {isLoading ? (
-        <p className="change-orders__empty">Loading change orders...</p>
-      ) : sortedOrders.length === 0 ? (
-        <p className="change-orders__empty">No change orders yet. Create one to get started.</p>
-      ) : (
-        <ul className="change-orders__list">
-          {sortedOrders.map((order) => (
-            <li key={order.id} className="change-order-card">
+      {project && (
+        <section className="change-order-composer" aria-label="Create change order">
+          <form className="change-order-form" onSubmit={submitCreate}>
+            <div className="change-order-modal__layout">
+              <div className="change-order-modal__primary">
+                <section className="change-order-section">
+                  <div className="change-order-section__header">
+                    <h4>Change order details</h4>
+                    <span>Shared with recipients</span>
+                  </div>
+                  <div className="change-order-form__grid">
+                    <label className="change-order-form__field change-order-form__field--span-2">
+                      Subject
+                      <input
+                        name="subject"
+                        value={createForm.subject}
+                        onChange={handleCreateChange}
+                        placeholder="Describe the change"
+                        required
+                      />
+                    </label>
+                    <label className="change-order-form__field">
+                      Recipient name
+                      <input
+                        name="recipientName"
+                        value={createForm.recipientName}
+                        onChange={handleCreateChange}
+                        placeholder="Jordan Smith"
+                      />
+                    </label>
+                    <label className="change-order-form__field">
+                      Recipient email
+                      <input
+                        name="recipientEmail"
+                        type="email"
+                        value={createForm.recipientEmail}
+                        onChange={handleCreateChange}
+                        placeholder="jordan@example.com"
+                        required
+                      />
+                    </label>
+                    <label className="change-order-form__field change-order-form__field--span-2">
+                      Details
+                      <textarea
+                        name="description"
+                        rows={4}
+                        value={createForm.description}
+                        onChange={handleCreateChange}
+                        placeholder="Add context, costs, or next steps"
+                      />
+                    </label>
+                  </div>
+                </section>
+                {renderRecipientFields(createForm, setCreateForm)}
+                {renderLineItemFields(createForm, setCreateForm)}
+              </div>
+              <aside className="change-order-modal__aside">
+                {renderSummaryCard(
+                  "create",
+                  createRecipientCount,
+                  createLineItemCount,
+                  createTotalCost,
+                )}
+                {createError && <p className="modal__error">{createError}</p>}
+                <div className="modal__actions modal__actions--vertical">
+                  <button
+                    type="button"
+                    className="modal__secondary"
+                    onClick={resetCreateForm}
+                    disabled={isSubmitting}
+                  >
+                    Clear form
+                  </button>
+                  <button type="submit" className="modal__primary" disabled={isSubmitting}>
+                    {isSubmitting ? "Sending..." : "Send change order"}
+                  </button>
+                </div>
+              </aside>
+            </div>
+          </form>
+        </section>
+      )}
+
+      <div className="change-orders__results">
+        {project ? (
+          isLoading ? (
+            <p className="change-orders__empty">Loading change orders...</p>
+          ) : sortedOrders.length === 0 ? (
+            <p className="change-orders__empty">No change orders yet. Create one to get started.</p>
+          ) : (
+            <ul className="change-orders__list">
+              {sortedOrders.map((order) => (
+                <li key={order.id} className="change-order-card">
               <div className="change-order-card__header">
                 <div>
                   <h3>{order.subject || "Untitled change order"}</h3>
@@ -961,92 +1134,18 @@ const ChangeOrders = ({
               </div>
             </li>
           ))}
-        </ul>
-      )}
-
-      {isCreateOpen && (
-        <div className="modal">
-          <div className="modal__backdrop" onClick={closeCreateModal} />
-          <div className="modal__dialog" role="dialog" aria-modal="true">
-            <form className="modal__form" onSubmit={submitCreate}>
-              <header className="modal__header">
-                <h3>New change order</h3>
-                <button
-                  type="button"
-                  className="modal__close"
-                  onClick={closeCreateModal}
-                  aria-label="Close create change order form"
-                >
-                  X
-                </button>
-              </header>
-              <label>
-                Subject
-                <input
-                  name="subject"
-                  value={createForm.subject}
-                  onChange={handleCreateChange}
-                  placeholder="Describe the change"
-                  required
-                />
-              </label>
-              <label>
-                Details
-                <textarea
-                  name="description"
-                  rows={4}
-                  value={createForm.description}
-                  onChange={handleCreateChange}
-                  placeholder="Add context, costs, or next steps"
-                />
-              </label>
-              <div className="modal__grid">
-                <label>
-                  Recipient name
-                  <input
-                    name="recipientName"
-                    value={createForm.recipientName}
-                    onChange={handleCreateChange}
-                    placeholder="Jordan Smith"
-                  />
-                </label>
-                <label>
-                  Recipient email
-                  <input
-                    name="recipientEmail"
-                    type="email"
-                    value={createForm.recipientEmail}
-                    onChange={handleCreateChange}
-                    placeholder="jordan@example.com"
-                    required
-                  />
-                </label>
-              </div>
-              {renderRecipientFields(createForm, setCreateForm)}
-              {renderLineItemFields(createForm, setCreateForm)}
-              <div className="change-order-summary">
-                <span>Estimated total</span>
-                <strong>{currencyFormatter.format(createTotalCost)}</strong>
-              </div>
-              {createError && <p className="modal__error">{createError}</p>}
-              <div className="modal__actions">
-                <button type="button" className="modal__secondary" onClick={closeCreateModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="modal__primary" disabled={isSubmitting}>
-                  {isSubmitting ? "Sending..." : "Send change order"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </ul>
+          )
+        ) : (
+          <p className="change-orders__empty">Select a project to manage change orders.</p>
+        )}
+      </div>
 
       {isEditOpen && (
         <div className="modal">
           <div className="modal__backdrop" onClick={closeEditModal} />
-          <div className="modal__dialog" role="dialog" aria-modal="true">
-            <form className="modal__form" onSubmit={submitEdit}>
+          <div className="modal__dialog modal__dialog--change-order" role="dialog" aria-modal="true">
+            <form className="modal__form change-order-form" onSubmit={submitEdit}>
               <header className="modal__header">
                 <h3>Edit change order</h3>
                 <button
@@ -1058,58 +1157,72 @@ const ChangeOrders = ({
                   X
                 </button>
               </header>
-              <label>
-                Subject
-                <input
-                  name="subject"
-                  value={editForm.subject}
-                  onChange={handleEditChange}
-                  required
-                />
-              </label>
-              <label>
-                Details
-                <textarea
-                  name="description"
-                  rows={4}
-                  value={editForm.description}
-                  onChange={handleEditChange}
-                />
-              </label>
-              <div className="modal__grid">
-                <label>
-                  Recipient name
-                  <input
-                    name="recipientName"
-                    value={editForm.recipientName}
-                    onChange={handleEditChange}
-                  />
-                </label>
-                <label>
-                  Recipient email
-                  <input
-                    name="recipientEmail"
-                    type="email"
-                    value={editForm.recipientEmail}
-                    onChange={handleEditChange}
-                    required
-                  />
-                </label>
-              </div>
-              {renderRecipientFields(editForm, setEditForm)}
-              {renderLineItemFields(editForm, setEditForm)}
-              <div className="change-order-summary">
-                <span>Estimated total</span>
-                <strong>{currencyFormatter.format(editTotalCost)}</strong>
-              </div>
-              {editError && <p className="modal__error">{editError}</p>}
-              <div className="modal__actions">
-                <button type="button" className="modal__secondary" onClick={closeEditModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="modal__primary" disabled={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Save changes"}
-                </button>
+              <div className="change-order-modal__layout">
+                <div className="change-order-modal__primary">
+                  <section className="change-order-section">
+                    <div className="change-order-section__header">
+                      <h4>Change order details</h4>
+                      <span>Shared with recipients</span>
+                    </div>
+                    <div className="change-order-form__grid">
+                      <label className="change-order-form__field change-order-form__field--span-2">
+                        Subject
+                        <input
+                          name="subject"
+                          value={editForm.subject}
+                          onChange={handleEditChange}
+                          required
+                        />
+                      </label>
+                      <label className="change-order-form__field">
+                        Recipient name
+                        <input
+                          name="recipientName"
+                          value={editForm.recipientName}
+                          onChange={handleEditChange}
+                        />
+                      </label>
+                      <label className="change-order-form__field">
+                        Recipient email
+                        <input
+                          name="recipientEmail"
+                          type="email"
+                          value={editForm.recipientEmail}
+                          onChange={handleEditChange}
+                          required
+                        />
+                      </label>
+                      <label className="change-order-form__field change-order-form__field--span-2">
+                        Details
+                        <textarea
+                          name="description"
+                          rows={4}
+                          value={editForm.description}
+                          onChange={handleEditChange}
+                        />
+                      </label>
+                    </div>
+                  </section>
+                  {renderRecipientFields(editForm, setEditForm)}
+                  {renderLineItemFields(editForm, setEditForm)}
+                </div>
+                <aside className="change-order-modal__aside">
+                  {renderSummaryCard(
+                    "edit",
+                    editRecipientCount,
+                    editLineItemCount,
+                    editTotalCost,
+                  )}
+                  {editError && <p className="modal__error">{editError}</p>}
+                  <div className="modal__actions modal__actions--vertical">
+                    <button type="button" className="modal__secondary" onClick={closeEditModal}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="modal__primary" disabled={isSubmitting}>
+                      {isSubmitting ? "Saving..." : "Save changes"}
+                    </button>
+                  </div>
+                </aside>
               </div>
             </form>
           </div>
