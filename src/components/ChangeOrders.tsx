@@ -52,7 +52,6 @@ type ChangeOrdersProps = {
   project: Project | null;
   orders: ChangeOrder[];
   onCreate: (input: ChangeOrderPayload) => Promise<void> | void;
-  onEdit: (orderId: string, input: ChangeOrderPayload) => Promise<void> | void;
   onDelete: (orderId: string) => Promise<void> | void;
   onChangeStatus: (
     orderId: string,
@@ -83,6 +82,15 @@ const currencyFormatter = new Intl.NumberFormat(undefined, {
   currency: "USD",
   minimumFractionDigits: 2,
 });
+
+const CHANGE_ORDER_GUIDANCE_MESSAGE =
+  "We'll email every recipient with an approval link once you send this change order.";
+
+const CHANGE_ORDER_GUIDANCE_POINTS = [
+  "Primary contact receives the change order immediately.",
+  "Each recipient can approve, deny, or request more info from their email.",
+  "Attachments stay organized on the project timeline.",
+];
 
 const generateId = (prefix: string) => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -260,15 +268,12 @@ const ChangeOrders = ({
   project,
   orders,
   onCreate,
-  onEdit,
   onDelete,
   onChangeStatus,
   isLoading = false,
 }: ChangeOrdersProps) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isResponseOpen, setIsResponseOpen] = useState(false);
-  const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [responseTarget, setResponseTarget] = useState<{
     id: string;
     status: ChangeOrderStatus;
@@ -277,13 +282,9 @@ const ChangeOrders = ({
   const [createForm, setCreateForm] = useState<ChangeOrderFormState>(
     () => createEmptyForm(),
   );
-  const [editForm, setEditForm] = useState<ChangeOrderFormState>(
-    () => createEmptyForm(),
-  );
   const [responseMessage, setResponseMessage] = useState("");
 
   const [createError, setCreateError] = useState<string | null>(null);
-  const [editError, setEditError] = useState<string | null>(null);
   const [responseError, setResponseError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -291,25 +292,13 @@ const ChangeOrders = ({
     () => calculateTotalCost(createForm.lineItems),
     [createForm.lineItems],
   );
-  const editTotalCost = useMemo(
-    () => calculateTotalCost(editForm.lineItems),
-    [editForm.lineItems],
-  );
   const createRecipientCount = useMemo(
     () => countRecipientDrafts(createForm.recipientEmail, createForm.recipients),
     [createForm.recipientEmail, createForm.recipients],
   );
-  const editRecipientCount = useMemo(
-    () => countRecipientDrafts(editForm.recipientEmail, editForm.recipients),
-    [editForm.recipientEmail, editForm.recipients],
-  );
   const createLineItemCount = useMemo(
     () => countLineItemDrafts(createForm.lineItems),
     [createForm.lineItems],
-  );
-  const editLineItemCount = useMemo(
-    () => countLineItemDrafts(editForm.lineItems),
-    [editForm.lineItems],
   );
 
   useEffect(() => {
@@ -346,15 +335,6 @@ const ChangeOrders = ({
     setCreateForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
     if (createError) {
       setCreateError(null);
-    }
-  };
-
-  const handleEditChange = (
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    setEditForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
-    if (editError) {
-      setEditError(null);
     }
   };
 
@@ -431,46 +411,6 @@ const ChangeOrders = ({
     setIsSubmitting(false);
   };
 
-  const openEditModal = (order: ChangeOrder) => {
-    setEditOrderId(order.id);
-    setEditForm({
-      subject: order.subject,
-      description: order.description,
-      recipientName: order.recipientName,
-      recipientEmail: order.recipientEmail,
-      lineItems:
-        order.lineItems.length > 0
-          ? order.lineItems.map((item) => ({
-              id: item.id || generateId("item"),
-              title: item.title,
-              description: item.description,
-              impactDays:
-                item.impactDays || item.impactDays === 0
-                  ? String(item.impactDays)
-                  : "",
-              cost: item.cost || item.cost === 0 ? String(item.cost) : "",
-            }))
-          : [createEmptyLineItemDraft()],
-      recipients:
-        order.recipients.length > 0
-          ? order.recipients.map((recipient) => ({
-              id: recipient.id || generateId("recipient"),
-              name: recipient.name ?? "",
-              email: recipient.email ?? "",
-            }))
-          : [createEmptyRecipientDraft()],
-    });
-    setEditError(null);
-    setIsEditOpen(true);
-  };
-
-  const closeEditModal = () => {
-    setIsEditOpen(false);
-    setEditOrderId(null);
-    setEditError(null);
-    setIsSubmitting(false);
-  };
-
   const closeResponseModal = () => {
     setIsResponseOpen(false);
     setResponseTarget(null);
@@ -512,47 +452,6 @@ const ChangeOrders = ({
     } catch (err: any) {
       console.error("Error creating change order:", err);
       setCreateError(err?.message ?? "Failed to create change order.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const submitEdit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editOrderId) {
-      return;
-    }
-    if (!editForm.subject.trim()) {
-      setEditError("Subject is required.");
-      return;
-    }
-    const recipientEmail = editForm.recipientEmail.trim();
-    const recipientPayload = buildRecipientPayload(
-      editForm.recipientName,
-      recipientEmail,
-      editForm.recipients,
-    );
-    if (recipientPayload.length === 0) {
-      setEditError("Add at least one recipient email.");
-      return;
-    }
-    try {
-      setIsSubmitting(true);
-      const lineItems = pruneLineItems(normalizeLineItems(editForm.lineItems));
-      await Promise.resolve(
-        onEdit(editOrderId, {
-          subject: editForm.subject,
-          description: editForm.description,
-          recipientName: editForm.recipientName,
-          recipientEmail,
-          lineItems,
-          recipients: recipientPayload,
-        }),
-      );
-      closeEditModal();
-    } catch (err: any) {
-      console.error("Error updating change order:", err);
-      setEditError(err?.message ?? "Failed to update change order.");
     } finally {
       setIsSubmitting(false);
     }
@@ -602,35 +501,18 @@ const ChangeOrders = ({
   };
 
   const renderSummaryCard = (
-    mode: "create" | "edit",
     recipientCount: number,
     lineItemCount: number,
     totalCost: number,
   ) => {
-    const isCreate = mode === "create";
-    const heading = isCreate ? "Send overview" : "Update overview";
-    const description = isCreate
-      ? "We’ll email every recipient with an approval link once you send this change order."
-      : "Recipients are notified about the latest details as soon as you save.";
     const projectLabel = project
       ? [project.name, project.referenceId].filter(Boolean).join(" • ")
       : "Workspace change order";
-    const checklist = isCreate
-      ? [
-          "Primary contact receives the change order immediately.",
-          "Each recipient can approve, deny, or request more info from their email.",
-          "Attachments stay organized on the project timeline.",
-        ]
-      : [
-          "Keep the project team aligned with the latest scope and pricing.",
-          "Recipients see updated details and status instantly.",
-          "Track responses from the Change Orders dashboard.",
-        ];
 
     return (
       <div className="change-order-summary-card">
         <div className="change-order-summary-card__header">
-          <h4>{heading}</h4>
+          <h4>Send overview</h4>
           <span className="change-order-summary-card__project">{projectLabel}</span>
         </div>
         <div className="change-order-summary-card__metrics">
@@ -647,12 +529,6 @@ const ChangeOrders = ({
           <span>Estimated total</span>
           <strong>{currencyFormatter.format(totalCost)}</strong>
         </div>
-        <p className="change-order-summary-card__description">{description}</p>
-        <ul className="change-order-summary-card__checklist">
-          {checklist.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
       </div>
     );
   };
@@ -840,6 +716,16 @@ const ChangeOrders = ({
           </div>
         </div>
       </header>
+      {project && (
+        <section className="change-orders__guidance" aria-label="Change order delivery details">
+          <p>{CHANGE_ORDER_GUIDANCE_MESSAGE}</p>
+          <ul>
+            {CHANGE_ORDER_GUIDANCE_POINTS.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       <div className="change-orders__context">
         {project ? (
           <span>
@@ -908,7 +794,6 @@ const ChangeOrders = ({
               </div>
               <aside className="change-order-modal__aside">
                 {renderSummaryCard(
-                  "create",
                   createRecipientCount,
                   createLineItemCount,
                   createTotalCost,
@@ -985,14 +870,6 @@ const ChangeOrders = ({
                   </button>
                   {openMenuId === `change:${order.id}` && (
                     <div className="calendar__post-menu" role="menu">
-                      <button
-                        type="button"
-                        className="calendar__post-menu-item"
-                        role="menuitem"
-                        onClick={() => openEditModal(order)}
-                      >
-                        Edit details
-                      </button>
                       <button
                         type="button"
                         className="calendar__post-menu-item calendar__post-menu-item--danger"
@@ -1140,94 +1017,6 @@ const ChangeOrders = ({
           <p className="change-orders__empty">Select a project to manage change orders.</p>
         )}
       </div>
-
-      {isEditOpen && (
-        <div className="modal">
-          <div className="modal__backdrop" onClick={closeEditModal} />
-          <div className="modal__dialog modal__dialog--change-order" role="dialog" aria-modal="true">
-            <form className="modal__form change-order-form" onSubmit={submitEdit}>
-              <header className="modal__header">
-                <h3>Edit change order</h3>
-                <button
-                  type="button"
-                  className="modal__close"
-                  onClick={closeEditModal}
-                  aria-label="Close edit change order form"
-                >
-                  X
-                </button>
-              </header>
-              <div className="change-order-modal__layout">
-                <div className="change-order-modal__primary">
-                  <section className="change-order-section">
-                    <div className="change-order-section__header">
-                      <h4>Change order details</h4>
-                      <span>Shared with recipients</span>
-                    </div>
-                    <div className="change-order-form__grid">
-                      <label className="change-order-form__field change-order-form__field--span-2">
-                        Subject
-                        <input
-                          name="subject"
-                          value={editForm.subject}
-                          onChange={handleEditChange}
-                          required
-                        />
-                      </label>
-                      <label className="change-order-form__field">
-                        Recipient name
-                        <input
-                          name="recipientName"
-                          value={editForm.recipientName}
-                          onChange={handleEditChange}
-                        />
-                      </label>
-                      <label className="change-order-form__field">
-                        Recipient email
-                        <input
-                          name="recipientEmail"
-                          type="email"
-                          value={editForm.recipientEmail}
-                          onChange={handleEditChange}
-                          required
-                        />
-                      </label>
-                      <label className="change-order-form__field change-order-form__field--span-2">
-                        Details
-                        <textarea
-                          name="description"
-                          rows={4}
-                          value={editForm.description}
-                          onChange={handleEditChange}
-                        />
-                      </label>
-                    </div>
-                  </section>
-                  {renderRecipientFields(editForm, setEditForm)}
-                  {renderLineItemFields(editForm, setEditForm)}
-                </div>
-                <aside className="change-order-modal__aside">
-                  {renderSummaryCard(
-                    "edit",
-                    editRecipientCount,
-                    editLineItemCount,
-                    editTotalCost,
-                  )}
-                  {editError && <p className="modal__error">{editError}</p>}
-                  <div className="modal__actions modal__actions--vertical">
-                    <button type="button" className="modal__secondary" onClick={closeEditModal}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="modal__primary" disabled={isSubmitting}>
-                      {isSubmitting ? "Saving..." : "Save changes"}
-                    </button>
-                  </div>
-                </aside>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {isResponseOpen && responseTarget && (
         <div className="modal">

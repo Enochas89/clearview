@@ -1,16 +1,29 @@
-import { FormEvent, useEffect, useState } from "react";
-import { Project } from "../types";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { InviteMemberResult, Project, ProjectMember } from "../types";
 import logo from '../assets/logo.png';
+import ProjectMembersPanel from "./ProjectMembersPanel";
 
 type ProjectFormState = Omit<Project, "id" | "createdAt">;
 
 type SidebarProps = {
   projects: Project[];
   selectedProjectId: string | null;
+  members: ProjectMember[];
+  currentUserId: string;
+  currentUserEmail: string | null;
+  memberInviteFallback?: boolean;
   onSelectProject: (projectId: string) => void;
   onCreateProject: (input: ProjectFormState) => void;
   onUpdateProject: (projectId: string, input: ProjectFormState) => void;
   onDeleteProject: (projectId: string) => void;
+  onInviteMember: (input: {
+    projectId: string;
+    email: string;
+    role: "owner" | "editor" | "viewer";
+    name: string;
+  }) => Promise<InviteMemberResult | undefined>;
+  onUpdateMemberRole: (memberId: string, role: "owner" | "editor" | "viewer") => Promise<void> | void;
+  onRemoveMember: (memberId: string) => Promise<void> | void;
   onSignOut: () => void;
 };
 
@@ -30,12 +43,41 @@ const PROJECT_FORM_DRAFT_KEY = "projectFormDraft";
 const Sidebar = ({
   projects,
   selectedProjectId,
+  members,
+  currentUserId,
+  currentUserEmail,
+  memberInviteFallback = false,
   onSelectProject,
   onCreateProject,
   onUpdateProject,
   onDeleteProject,
+  onInviteMember,
+  onUpdateMemberRole,
+  onRemoveMember,
   onSignOut,
 }: SidebarProps) => {
+  const writeStoredProjectForm = (value: ProjectFormState) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(PROJECT_FORM_DRAFT_KEY, JSON.stringify(value));
+    } catch (error) {
+      console.error("Error saving project draft:", error);
+    }
+  };
+
+  const clearStoredProjectForm = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.removeItem(PROJECT_FORM_DRAFT_KEY);
+    } catch (error) {
+      console.error("Error clearing project draft:", error);
+    }
+  };
+
   const readStoredProjectForm = (): ProjectFormState | null => {
     if (typeof window === "undefined") {
       return null;
@@ -58,9 +100,27 @@ const Sidebar = ({
       return null;
     }
   };
-  const [projectForm, setProjectForm] = useState<ProjectFormState>(() => readStoredProjectForm() ?? emptyProjectForm);
+
+  const initialProjectFormDraft = useMemo(() => readStoredProjectForm(), []);
+
+  const [projectForm, setProjectForm] = useState<ProjectFormState>(() => initialProjectFormDraft ?? emptyProjectForm);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
+  const [isProjectFormOpen, setIsProjectFormOpen] = useState(() => Boolean(initialProjectFormDraft));
+  const [isMembersPanelOpen, setIsMembersPanelOpen] = useState(false);
+  const memberCount = members.length;
+
+  const projectFormHasContent = (form: ProjectFormState) =>
+    Boolean(
+      form.name.trim() ||
+        form.referenceId.trim() ||
+        form.address.trim() ||
+        form.projectManager.trim() ||
+        form.cost.trim() ||
+        form.startDate.trim() ||
+        form.dueDate.trim() ||
+        form.description.trim() ||
+        form.color !== emptyProjectForm.color,
+    );
 
   useEffect(() => {
     if (!isProjectFormOpen || editingProjectId) {
@@ -69,20 +129,28 @@ const Sidebar = ({
     if (typeof window === "undefined") {
       return;
     }
-    try {
-      window.localStorage.setItem(PROJECT_FORM_DRAFT_KEY, JSON.stringify(projectForm));
-    } catch (error) {
-      console.error("Error saving project draft:", error);
+    if (!projectFormHasContent(projectForm)) {
+      clearStoredProjectForm();
+      return;
     }
+    writeStoredProjectForm(projectForm);
   }, [projectForm, isProjectFormOpen, editingProjectId]);
 
-  const resetProjectForm = () => {
-    setProjectForm(emptyProjectForm);
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setIsMembersPanelOpen(false);
+    }
+  }, [selectedProjectId]);
+
+  const closeProjectForm = () => {
+    setIsProjectFormOpen(false);
     setEditingProjectId(null);
   };
 
-  const closeProjectForm = () => {
-    resetProjectForm();
+  const finalizeProjectFormSubmission = () => {
+    clearStoredProjectForm();
+    setProjectForm(emptyProjectForm);
+    setEditingProjectId(null);
     setIsProjectFormOpen(false);
   };
 
@@ -90,7 +158,9 @@ const Sidebar = ({
     if (isProjectFormOpen || editingProjectId) {
       closeProjectForm();
     } else {
-      resetProjectForm();
+      const storedDraft = readStoredProjectForm();
+      setProjectForm(storedDraft ?? emptyProjectForm);
+      setEditingProjectId(null);
       setIsProjectFormOpen(true);
     }
   };
@@ -110,12 +180,32 @@ const Sidebar = ({
     }
 
     if (editingProjectId) {
-      onUpdateProject(editingProjectId, projectForm);
+      const result = onUpdateProject(editingProjectId, projectForm);
+      if (result && typeof (result as PromiseLike<void>).then === "function") {
+        (result as PromiseLike<void>)
+          .then(() => {
+            finalizeProjectFormSubmission();
+          })
+          .catch(() => {
+            // Keep the form open so the user can review the error surfaced elsewhere.
+          });
+      } else {
+        finalizeProjectFormSubmission();
+      }
     } else {
-      onCreateProject(projectForm);
+      const result = onCreateProject(projectForm);
+      if (result && typeof (result as PromiseLike<void>).then === "function") {
+        (result as PromiseLike<void>)
+          .then(() => {
+            finalizeProjectFormSubmission();
+          })
+          .catch(() => {
+            // Keep the form open so the user can review the error surfaced elsewhere.
+          });
+      } else {
+        finalizeProjectFormSubmission();
+      }
     }
-
-    closeProjectForm();
   };
 
   const beginProjectEdit = (project: Project) => {
@@ -301,6 +391,39 @@ const Sidebar = ({
           </form>
         )}
       </section>
+
+      {selectedProjectId && (
+        <section className="sidebar__section sidebar__members-panel">
+          <div className="sidebar__section-header">
+            <div>
+              <h2>Team</h2>
+              <p className="sidebar__section-subtitle">Invite collaborators to this project.</p>
+            </div>
+            <div className="sidebar__section-actions">
+              <span className="sidebar__count">{memberCount}</span>
+              <button
+                type="button"
+                className="sidebar__action"
+                onClick={() => setIsMembersPanelOpen((prev) => !prev)}
+              >
+                {isMembersPanelOpen ? "Hide team" : "Manage team"}
+              </button>
+            </div>
+          </div>
+          {isMembersPanelOpen && (
+            <ProjectMembersPanel
+              projectId={selectedProjectId}
+              members={members}
+              currentUserId={currentUserId}
+              currentUserEmail={currentUserEmail}
+              allowInviteFallback={memberInviteFallback}
+              onInvite={onInviteMember}
+              onUpdateRole={onUpdateMemberRole}
+              onRemoveMember={onRemoveMember}
+            />
+          )}
+        </section>
+      )}
 
       <div className="sidebar__section">
         <button type="button" className="sidebar__action" onClick={onSignOut}>

@@ -1268,77 +1268,6 @@ const notifyChangeOrder = useCallback(
     }
   };
 
-  const handleEditChangeOrder = async (
-    orderId: string,
-    input: {
-      subject: string;
-      description: string;
-      recipientName: string;
-      recipientEmail: string;
-      lineItems: ChangeOrderLineItem[];
-      recipients: Array<{ id?: string; email: string; name?: string | null }>;
-    }
-  ) => {
-    try {
-      setError(null);
-      const nowIso = new Date().toISOString();
-      const { data, error: updateError } = await supabase
-        .from("change_orders")
-        .update({
-          subject: input.subject.trim(),
-          body: input.description.trim(),
-          recipient_name: input.recipientName.trim() || null,
-          recipient_email: input.recipientEmail.trim(),
-          updated_at: nowIso,
-          line_items: JSON.stringify(input.lineItems ?? []),
-        })
-        .eq("id", orderId)
-        .select(
-          "id, project_id, subject, body, recipient_name, recipient_email, status, sent_at, updated_at, response_at, response_message, created_by, created_by_name, responded_by, responded_by_name, created_at, line_items"
-        )
-        .single();
-
-      if (updateError) throw updateError;
-
-      const normalizedRecipients = (input.recipients ?? [])
-        .map((recipient) => {
-          const email = recipient.email?.trim().toLowerCase();
-          if (!email) {
-            return null;
-          }
-          return {
-            change_order_id: orderId,
-            email,
-            name: recipient.name?.trim() || null,
-          };
-        })
-        .filter(Boolean) as Array<{ change_order_id: string; email: string; name: string | null }>;
-
-      await supabase
-        .from("change_order_recipients")
-        .delete()
-        .eq("change_order_id", orderId);
-
-      if (normalizedRecipients.length > 0) {
-        const { error: upsertError } = await supabase
-          .from("change_order_recipients")
-          .insert(normalizedRecipients);
-        if (upsertError) {
-          throw upsertError;
-        }
-        await notifyChangeOrder({ changeOrderId: orderId, event: "status" });
-      }
-
-      if (selectedProjectId) {
-        await loadChangeOrders(selectedProjectId);
-      }
-    } catch (err: any) {
-      console.error("Error updating change order:", err);
-      setError(err.message || "Failed to update change order.");
-      throw err;
-    }
-  };
-
   const handleDeleteChangeOrder = async (orderId: string) => {
     try {
       setError(null);
@@ -1589,7 +1518,6 @@ const notifyChangeOrder = useCallback(
                   project={activeProject}
                   orders={changeOrders}
                   onCreate={handleCreateChangeOrder}
-                  onEdit={handleEditChangeOrder}
                   onDelete={handleDeleteChangeOrder}
                   onChangeStatus={handleChangeOrderStatus}
                   isLoading={loading}
