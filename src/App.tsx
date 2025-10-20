@@ -1389,6 +1389,15 @@ const notifyChangeOrder = useCallback(
 
       const inserted = mapMemberFromRow(data as ProjectMemberRow);
       setProjectMembers((prev) => [...prev, inserted]);
+
+      try {
+        supabase.functions.invoke("send-project-invite-email", {
+          body: { memberId: inserted.id },
+        });
+      } catch (notificationError) {
+        console.error("Error sending project invite notification:", notificationError);
+      }
+
       return { member: inserted };
     } catch (err: any) {
       console.error("Error inviting member:", err);
