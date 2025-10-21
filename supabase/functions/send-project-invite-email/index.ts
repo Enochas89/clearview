@@ -49,7 +49,8 @@ const sendViaBrevo = async ({
     connection: {
       hostname: BREVO_SMTP_HOST,
       port: Number(BREVO_SMTP_PORT),
-      tls: true,
+      tls: false,
+      starttls: true,
       auth: {
         username: BREVO_SMTP_USER,
         password: BREVO_SMTP_PASSWORD,
