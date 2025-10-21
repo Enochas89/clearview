@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
-import { SmtpClient } from "https://deno.land/x/denomailer/mod.ts";
+import { SMTPClient } from "https://deno.land/x/denomailer/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -45,13 +45,16 @@ const sendViaBrevo = async ({
     return { skipped: true };
   }
 
-  const client = new SmtpClient();
-
-  await client.connect({
-    hostname: BREVO_SMTP_HOST,
-    port: Number(BREVO_SMTP_PORT),
-    username: BREVO_SMTP_USER,
-    password: BREVO_SMTP_PASSWORD,
+  const client = new SMTPClient({
+    connection: {
+      hostname: BREVO_SMTP_HOST,
+      port: Number(BREVO_SMTP_PORT),
+      tls: true,
+      auth: {
+        username: BREVO_SMTP_USER,
+        password: BREVO_SMTP_PASSWORD,
+      },
+    },
   });
 
   await client.send({
