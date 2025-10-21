@@ -1,11 +1,15 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { SmtpClient } from "https://deno.land/x/denomailer/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const APP_URL = Deno.env.get("APP_URL") ?? "";
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("EMAIL_FROM");
+const BREVO_SMTP_HOST = Deno.env.get("BREVO_SMTP_HOST");
+const BREVO_SMTP_PORT = Deno.env.get("BREVO_SMTP_PORT");
+const BREVO_SMTP_USER = Deno.env.get("BREVO_SMTP_USER");
+const BREVO_SMTP_PASSWORD = Deno.env.get("BREVO_SMTP_PASSWORD");
+const BREVO_FROM_EMAIL = Deno.env.get("BREVO_FROM_EMAIL");
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("Missing Supabase service role configuration for edge function.");
@@ -19,7 +23,7 @@ type ProjectInviteNotificationRequest = {
   memberId: string;
 };
 
-const sendViaResend = async ({
+const sendViaBrevo = async ({
   to,
   subject,
   html,
@@ -30,34 +34,50 @@ const sendViaResend = async ({
   html: string;
   text: string;
 }) => {
-  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
-    console.warn("Resend configuration missing. Email send skipped.");
+  if (
+    !BREVO_SMTP_HOST ||
+    !BREVO_SMTP_PORT ||
+    !BREVO_SMTP_USER ||
+    !BREVO_SMTP_PASSWORD ||
+    !BREVO_FROM_EMAIL
+  ) {
+    console.warn("Brevo SMTP configuration missing. Email send skipped.");
     return { skipped: true };
   }
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-    },
-    body: JSON.stringify({
-      from: RESEND_FROM_EMAIL,
-      to,
-      subject,
-      html,
-      text,
-    }),
+
+  const client = new SmtpClient();
+
+  await client.connect({
+    hostname: BREVO_SMTP_HOST,
+    port: Number(BREVO_SMTP_PORT),
+    username: BREVO_SMTP_USER,
+    password: BREVO_SMTP_PASSWORD,
   });
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to send email via Resend: ${errorText}`);
-  }
+
+  await client.send({
+    from: BREVO_FROM_EMAIL,
+    to,
+    subject,
+    content: text,
+    html,
+  });
+
+  await client.close();
+
   return { skipped: false };
 };
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   if (req.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 });
+    return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
   }
 
   let payload: ProjectInviteNotificationRequest;
@@ -66,14 +86,14 @@ serve(async (req) => {
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   if (!payload?.memberId) {
     return new Response(JSON.stringify({ error: "memberId is required" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -87,7 +107,7 @@ serve(async (req) => {
     console.error("Unable to load project member for notification:", error);
     return new Response(JSON.stringify({ error: "Project member not found" }), {
       status: 404,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -96,17 +116,17 @@ serve(async (req) => {
 
   const subject = `You've been invited to collaborate on ${projectName}`;
   const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827;">
-      <h2 style="margin-bottom:8px;">You're invited!</h2>
-      <p style="margin-top:0;">You have been invited to collaborate on the project <strong>${projectName}</strong>.</p>
-      <p><a href="${projectUrl}" style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">View Project</a></p>
-      <p style="font-size:12px;color:#6b7280;">If the button does not work, copy and paste this link into your browser: <a href="${projectUrl}">${projectUrl}</a></p>
+    <div style=\"font-family:Arial,sans-serif;line-height:1.5;color:#111827;\">
+      <h2 style=\"margin-bottom:8px;\">You're invited!</h2>
+      <p style=\"margin-top:0;\">You have been invited to collaborate on the project <strong>${projectName}</strong>.</p>
+      <p><a href=\"$\{projectUrl}\" style=\"background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;\">View Project</a></p>
+      <p style=\"font-size:12px;color:#6b7280;\">If the button does not work, copy and paste this link into your browser: <a href=\"$\{projectUrl}\">$\{projectUrl}</a></p>
     </div>
   `;
   const text = `You have been invited to collaborate on the project ${projectName}. View the project here: ${projectUrl}`;
 
   try {
-    const sendResult = await sendViaResend({
+    const sendResult = await sendViaBrevo({
       to: member.email,
       subject,
       html,
@@ -114,13 +134,13 @@ serve(async (req) => {
     });
     return new Response(JSON.stringify({ sent: !sendResult.skipped }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (sendError) {
     console.error("Failed to send project invite email:", sendError);
     return new Response(JSON.stringify({ error: String(sendError) }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

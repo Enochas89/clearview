@@ -1433,6 +1433,15 @@ const notifyChangeOrder = useCallback(
   const handleRemoveMember = async (memberId: string) => {
     try {
       setError(null);
+
+      const memberToRemove = projectMembers.find((m) => m.id === memberId);
+      if (memberToRemove?.role === "owner") {
+        const owners = projectMembers.filter((m) => m.role === "owner");
+        if (owners.length <= 1) {
+          throw new Error("Cannot remove the last owner of a project.");
+        }
+      }
+
       const { error: deleteError } = await supabase
         .from("project_members")
         .delete()
