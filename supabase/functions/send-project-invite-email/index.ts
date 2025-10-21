@@ -1,15 +1,11 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
-import { SMTPClient } from "https://deno.land/x/denomailer/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const APP_URL = Deno.env.get("APP_URL") ?? "";
-const BREVO_SMTP_HOST = Deno.env.get("BREVO_SMTP_HOST");
-const BREVO_SMTP_PORT = Deno.env.get("BREVO_SMTP_PORT");
-const BREVO_SMTP_USER = Deno.env.get("BREVO_SMTP_USER");
-const BREVO_SMTP_PASSWORD = Deno.env.get("BREVO_SMTP_PASSWORD");
-const BREVO_FROM_EMAIL = Deno.env.get("BREVO_FROM_EMAIL");
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL");
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("Missing Supabase service role configuration for edge function.");
@@ -23,7 +19,7 @@ type ProjectInviteNotificationRequest = {
   memberId: string;
 };
 
-const sendViaBrevo = async ({
+const sendViaResend = async ({
   to,
   subject,
   html,
@@ -34,40 +30,28 @@ const sendViaBrevo = async ({
   html: string;
   text: string;
 }) => {
-  if (
-    !BREVO_SMTP_HOST ||
-    !BREVO_SMTP_PORT ||
-    !BREVO_SMTP_USER ||
-    !BREVO_SMTP_PASSWORD ||
-    !BREVO_FROM_EMAIL
-  ) {
-    console.warn("Brevo SMTP configuration missing. Email send skipped.");
+  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+    console.warn("Resend configuration missing. Email send skipped.");
     return { skipped: true };
   }
-
-  const client = new SMTPClient({
-    connection: {
-      hostname: BREVO_SMTP_HOST,
-      port: Number(BREVO_SMTP_PORT),
-      tls: false,
-      starttls: true,
-      auth: {
-        username: BREVO_SMTP_USER,
-        password: BREVO_SMTP_PASSWORD,
-      },
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${RESEND_API_KEY}`,
     },
+    body: JSON.stringify({
+      from: RESEND_FROM_EMAIL,
+      to,
+      subject,
+      html,
+      text,
+    }),
   });
-
-  await client.send({
-    from: BREVO_FROM_EMAIL,
-    to,
-    subject,
-    content: text,
-    html,
-  });
-
-  await client.close();
-
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to send email via Resend: ${errorText}`);
+  }
   return { skipped: false };
 };
 
@@ -123,14 +107,14 @@ serve(async (req) => {
     <div style=\"font-family:Arial,sans-serif;line-height:1.5;color:#111827;\">
       <h2 style=\"margin-bottom:8px;\">You're invited!</h2>
       <p style=\"margin-top:0;\">You have been invited to collaborate on the project <strong>${projectName}</strong>.</p>
-      <p><a href=\"$\{projectUrl}\" style=\"background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;\">View Project</a></p>
-      <p style=\"font-size:12px;color:#6b7280;\">If the button does not work, copy and paste this link into your browser: <a href=\"$\{projectUrl}\">$\{projectUrl}</a></p>
+      <p><a href=\"${projectUrl}\" style=\"background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;\">View Project</a></p>
+      <p style=\"font-size:12px;color:#6b7280;\">If the button does not work, copy and paste this link into your browser: <a href=\"${projectUrl}\">${projectUrl}</a></p>
     </div>
   `;
   const text = `You have been invited to collaborate on the project ${projectName}. View the project here: ${projectUrl}`;
 
   try {
-    const sendResult = await sendViaBrevo({
+    const sendResult = await sendViaResend({
       to: member.email,
       subject,
       html,
