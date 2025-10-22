@@ -577,6 +577,12 @@ const notifyChangeOrder = useCallback(
   );
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const projectId = searchParams.get("project_id");
+    if (projectId) {
+      setSelectedProjectId(projectId);
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);

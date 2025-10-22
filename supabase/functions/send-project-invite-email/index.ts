@@ -100,7 +100,7 @@ serve(async (req) => {
   }
 
   const projectName = member.projects?.name ?? "a project";
-  const projectUrl = `${APP_URL}/project/${member.projects?.id}`;
+  const projectUrl = `${APP_URL}/?project_id=${member.projects?.id}`;
 
   const subject = `You've been invited to collaborate on ${projectName}`;
   const html = `
