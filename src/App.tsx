@@ -577,6 +577,7 @@ const notifyChangeOrder = useCallback(
   );
 
   useEffect(() => {
+    console.log('Supabase session user', session?.user?.id, session?.user?.email);
     const searchParams = new URLSearchParams(window.location.search);
     const projectId = searchParams.get("project_id");
 
