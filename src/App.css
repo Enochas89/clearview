@@ -1248,6 +1248,13 @@
   align-items: center;
 }
 
+.calendar__recent-attachment-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
 .calendar__recent-thumb {
   width: 56px;
   height: 56px;
@@ -1281,6 +1288,13 @@
 
 .calendar__recent-attachment small {
   color: #1e3a8a;
+}
+
+.calendar__attachment-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  object-fit: contain;
 }
 
 .calendar__recent-empty {
@@ -3055,6 +3069,13 @@ a.calendar__post-menu-item {
   gap: 10px;
   border-style: solid;
   background: rgba(37, 99, 235, 0.08);
+}
+
+.calendar__post-attachment-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
 }
 
 .calendar__post-thumb {

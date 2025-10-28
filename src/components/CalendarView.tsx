@@ -758,6 +758,7 @@ const CalendarView = ({ activeProjectId,
                     <div className="calendar__recent-attachments">
                       {activity.attachments.map((attachment) => {
                         const isImage = attachment.type?.startsWith("image/");
+                        const iconSrc = getFileIconSrc(attachment);
                         return (
                           <a
                             key={attachment.id}
@@ -795,10 +796,18 @@ const CalendarView = ({ activeProjectId,
                                 </div>
                               </>
                             ) : (
-                              <>
-                                <span>{attachment.name}</span>
-                                <small>{formatFileSize(attachment.size)}</small>
-                              </>
+                              <div className="calendar__recent-attachment-content">
+                                <img
+                                  src={iconSrc}
+                                  alt=""
+                                  className="calendar__attachment-icon"
+                                  aria-hidden="true"
+                                />
+                                <div className="calendar__recent-attachment-copy">
+                                  <span>{attachment.name}</span>
+                                  <small>{formatFileSize(attachment.size)}</small>
+                                </div>
+                              </div>
                             )}
                           </a>
                         );
@@ -886,39 +895,51 @@ const CalendarView = ({ activeProjectId,
                       {post.message && <p className="calendar__post-message">{post.message}</p>}
                       {post.attachments.length > 0 && (
                         <div className="calendar__post-attachments">
-                          {post.attachments.map((attachment) => (
-                            <a
-                              key={attachment.id}
-                              href={attachment.url}
-                              download={attachment.name}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`calendar__post-attachment${
-                                attachment.type?.startsWith("image/") ? " calendar__post-attachment--image" : ""
-                              }`}
-                            >
-                              {attachment.type?.startsWith("image/") ? (
-                                <>
-                                  <div className="calendar__post-thumb" aria-hidden="true">
-                                    {attachment.url ? (
-                                      <img src={attachment.url} alt={attachment.name} loading="lazy" />
-                                    ) : (
-                                      <span className="calendar__post-thumb-fallback" />
-                                    )}
+                          {post.attachments.map((attachment) => {
+                            const isImageAttachment = attachment.type?.startsWith("image/");
+                            const iconSrc = getFileIconSrc(attachment);
+                            return (
+                              <a
+                                key={attachment.id}
+                                href={attachment.url}
+                                download={attachment.name}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`calendar__post-attachment${
+                                  isImageAttachment ? " calendar__post-attachment--image" : ""
+                                }`}
+                              >
+                                {isImageAttachment ? (
+                                  <>
+                                    <div className="calendar__post-thumb" aria-hidden="true">
+                                      {attachment.url ? (
+                                        <img src={attachment.url} alt={attachment.name} loading="lazy" />
+                                      ) : (
+                                        <span className="calendar__post-thumb-fallback" />
+                                      )}
+                                    </div>
+                                    <div className="calendar__post-attachment-meta">
+                                      <span>{attachment.name}</span>
+                                      <small>{formatFileSize(attachment.size)}</small>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="calendar__post-attachment-content">
+                                    <img
+                                      src={iconSrc}
+                                      alt=""
+                                      className="calendar__attachment-icon"
+                                      aria-hidden="true"
+                                    />
+                                    <div className="calendar__post-attachment-meta">
+                                      <span>{attachment.name}</span>
+                                      <small>{formatFileSize(attachment.size)}</small>
+                                    </div>
                                   </div>
-                                  <div className="calendar__post-attachment-meta">
-                                    <span>{attachment.name}</span>
-                                    <small>{formatFileSize(attachment.size)}</small>
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <span>{attachment.name}</span>
-                                  <small>{formatFileSize(attachment.size)}</small>
-                                </>
-                              )}
-                            </a>
-                          ))}
+                                )}
+                              </a>
+                            );
+                          })}
                         </div>
                       )}
                     </article>
