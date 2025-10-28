@@ -22,9 +22,9 @@ type CalendarViewProps = {
 };
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
-const DOCUMENT_ICON_SRC = new URL("../../assets/doc.png", import.meta.url).href;
-const PDF_ICON_SRC = new URL("../../assets/pdf.png", import.meta.url).href;
-const IMAGE_ICON_SRC = new URL("../../assets/pic.png", import.meta.url).href;
+const DOCUMENT_ICON_SRC = new URL("../assets/doc.png", import.meta.url).href;
+const PDF_ICON_SRC = new URL("../assets/pdf.png", import.meta.url).href;
+const IMAGE_ICON_SRC = new URL("../assets/pic.png", import.meta.url).href;
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp", "svg", "heic", "heif"]);
 
 const getFileExtension = (fileName: string | undefined) => {
