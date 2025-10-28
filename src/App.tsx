@@ -577,7 +577,6 @@ const notifyChangeOrder = useCallback(
   );
 
   useEffect(() => {
-    console.log('Supabase session user', session?.user?.id, session?.user?.email);
     const searchParams = new URLSearchParams(window.location.search);
     const projectId = searchParams.get("project_id");
 
@@ -617,37 +616,79 @@ const notifyChangeOrder = useCallback(
     const fetchProjectsAndTasks = async () => {
       setError(null);
       try {
-        const { data: projectsData, error: projectsError } = await supabase
-          .from('projects')
-          .select(
-            "id, name, description, color, created_at, start_date, due_date, reference_id, cost, address, project_manager, user_id"
-          )
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: true });
+        const memberFilters = [`user_id.eq.${session.user.id}`];
+        if (session.user.email) {
+          memberFilters.push(`email.eq.${session.user.email}`);
+        }
 
-        if (projectsError) throw projectsError;
+        let memberQuery = supabase.from("project_members").select("project_id");
 
-        const mappedProjects = (projectsData ?? []).map((project) =>
-          mapProjectFromRow(project as ProjectRow),
+        if (memberFilters.length === 1) {
+          memberQuery = memberQuery.eq("user_id", session.user.id);
+        } else {
+          memberQuery = memberQuery.or(memberFilters.join(","));
+        }
+
+        const { data: memberRows, error: membersError } = await memberQuery;
+
+        if (membersError) throw membersError;
+
+        const projectIds = (memberRows ?? []).map((row) => row.project_id);
+        const projectSelect =
+          "id, name, description, color, created_at, start_date, due_date, reference_id, cost, address, project_manager, user_id";
+
+        const projectRows: ProjectRow[] = [];
+
+        if (projectIds.length > 0) {
+          const { data: memberProjects, error: memberProjectsError } = await supabase
+            .from("projects")
+            .select(projectSelect)
+            .in("id", projectIds);
+
+          if (memberProjectsError) throw memberProjectsError;
+          projectRows.push(...((memberProjects ?? []) as ProjectRow[]));
+        }
+
+        const { data: ownedProjects, error: ownedProjectsError } = await supabase
+          .from("projects")
+          .select(projectSelect)
+          .eq("user_id", session.user.id);
+
+        if (ownedProjectsError) throw ownedProjectsError;
+        projectRows.push(...((ownedProjects ?? []) as ProjectRow[]));
+
+        const uniqueProjects = Array.from(
+          new Map(projectRows.map((row) => [row.id, row])).values()
+        );
+
+        uniqueProjects.sort((a, b) => {
+          const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return createdA - createdB;
+        });
+
+        const mappedProjects = uniqueProjects.map((project) =>
+          mapProjectFromRow(project as ProjectRow)
         );
 
         let mappedTasks: Task[] = [];
         if (mappedProjects.length > 0) {
-          const projectIds = mappedProjects.map((project) => project.id);
+          const taskProjectIds = mappedProjects.map((project) => project.id);
           const { data: tasksData, error: tasksError } = await supabase
-            .from('tasks')
+            .from("tasks")
             .select(
               "id, project_id, name, description, start_date, due_date, status, dependencies"
             )
-            .in('project_id', projectIds);
+            .in("project_id", taskProjectIds);
 
           if (tasksError) throw tasksError;
 
           mappedTasks = (tasksData ?? []).map((task) =>
-            mapTaskFromRow(task as TaskRow),
+            mapTaskFromRow(task as TaskRow)
           );
         }
 
+        console.log("mappedProjects for", session?.user?.email, mappedProjects);
         setProjects(mappedProjects);
         setTasks(mappedTasks);
         if (mappedProjects.length > 0) {
@@ -658,11 +699,15 @@ const notifyChangeOrder = useCallback(
             return mappedProjects[0].id;
           });
         } else {
-          setSelectedProjectId(null); // No projects, so no selected project
+          setSelectedProjectId(null);
         }
       } catch (err: any) {
-        console.error("Error fetching data:", err);
-        setError(err.message || "Failed to fetch data.");
+        if (typeof err?.message === "string" && err.message.includes("Auth session missing")) {
+          console.warn("Fetch aborted after sign-out:", err.message);
+        } else {
+          console.error("Error fetching data:", err);
+          setError(err?.message || "Failed to fetch data.");
+        }
       } finally {
         setLoading(false);
       }
@@ -685,7 +730,9 @@ const notifyChangeOrder = useCallback(
   const handleSignOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (error && !error.message?.includes("Auth session missing")) {
+        throw error;
+      }
       setSession(null);
       setProjects([]);
       setTasks([]);
@@ -1349,31 +1396,62 @@ const notifyChangeOrder = useCallback(
     name: string;
   }): Promise<InviteMemberResult | undefined> => {
     if (!session) {
-      setError("You must be signed in to invite a member.");
-      return undefined;
+      throw new Error("You must be signed in to invite a member.");
     }
 
     const normalizedEmail = input.email.trim().toLowerCase();
     if (!normalizedEmail) {
-      setError("A valid email address is required.");
-      return undefined;
+      throw new Error("A valid email address is required.");
     }
 
-    if (
-      projectMembers.some(
-        (member) =>
-          member.projectId === input.projectId &&
-          member.email.toLowerCase() === normalizedEmail
-      )
-    ) {
-      setError("That email address is already associated with this project.");
-      return undefined;
-    }
+    const existingMember = projectMembers.find(
+      (member) =>
+        member.projectId === input.projectId &&
+        member.email.toLowerCase() === normalizedEmail
+    );
 
     const displayName = input.name.trim();
 
     try {
       setError(null);
+
+      if (existingMember) {
+        if (existingMember.status !== "pending") {
+          throw new Error("That email address is already associated with this project.");
+        }
+
+        const { data, error: updateError } = await supabase
+          .from("project_members")
+          .update({
+            role: input.role,
+            invited_at: new Date().toISOString(),
+            invited_by: session.user.id ?? null,
+            full_name: displayName || existingMember.fullName || null,
+          })
+          .eq("id", existingMember.id)
+          .select(
+            "id, project_id, user_id, email, role, status, invited_by, invited_at, accepted_at, full_name"
+          )
+          .single();
+
+        if (updateError) throw updateError;
+
+        const updated = mapMemberFromRow(data as ProjectMemberRow);
+        setProjectMembers((prev) =>
+          prev.map((member) => (member.id === updated.id ? updated : member))
+        );
+
+        try {
+          supabase.functions.invoke("send-project-invite-email", {
+            body: { memberId: updated.id },
+          });
+        } catch (notificationError) {
+          console.error("Error resending project invite notification:", notificationError);
+        }
+
+        return { member: updated, emailWarning: "Invite resent to pending member." };
+      }
+
       const { data, error: insertError } = await supabase
         .from("project_members")
         .insert([
@@ -1408,8 +1486,10 @@ const notifyChangeOrder = useCallback(
       return { member: inserted };
     } catch (err: any) {
       console.error("Error inviting member:", err);
-      setError(err.message || "Failed to invite project member.");
-      return undefined;
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error(err?.message ?? "Failed to invite project member.");
     }
   };
 
