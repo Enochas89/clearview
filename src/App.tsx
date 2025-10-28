@@ -894,7 +894,7 @@ const notifyChangeOrder = useCallback(
     });
   }, [selectedProjectId, tasks, projectDayEntries, activeProject]);
 
-  const upcomingTaskReminders = useMemo<TaskReminder[]>(() => {
+  const upcomingDueTasks = useMemo<TaskReminder[]>(() => {
     if (!selectedProjectId) {
       return [];
     }
