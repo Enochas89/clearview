@@ -671,6 +671,19 @@
   gap: 12px;
 }
 
+.calendar__file-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.calendar__file-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 .calendar__file-meta {
   display: flex;
   flex-direction: column;
@@ -3910,4 +3923,3 @@ a.calendar__post-menu-item {
   max-height: 360px;
   display: block;
 }
-

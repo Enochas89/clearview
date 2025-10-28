@@ -22,6 +22,42 @@ type CalendarViewProps = {
 };
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const DOCUMENT_ICON_SRC = new URL("../../assets/doc.png", import.meta.url).href;
+const PDF_ICON_SRC = new URL("../../assets/pdf.png", import.meta.url).href;
+const IMAGE_ICON_SRC = new URL("../../assets/pic.png", import.meta.url).href;
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp", "svg", "heic", "heif"]);
+
+const getFileExtension = (fileName: string | undefined) => {
+  if (!fileName) {
+    return "";
+  }
+  const lastDot = fileName.lastIndexOf(".");
+  return lastDot >= 0 ? fileName.slice(lastDot + 1).toLowerCase() : "";
+};
+
+const isImageFile = (file: Pick<DayFile, "type" | "name">) => {
+  if (file.type && file.type.startsWith("image/")) {
+    return true;
+  }
+  return IMAGE_EXTENSIONS.has(getFileExtension(file.name));
+};
+
+const isPdfFile = (file: Pick<DayFile, "type" | "name">) => {
+  if (file.type === "application/pdf") {
+    return true;
+  }
+  return getFileExtension(file.name) === "pdf";
+};
+
+const getFileIconSrc = (file: Pick<DayFile, "type" | "name">) => {
+  if (isImageFile(file)) {
+    return IMAGE_ICON_SRC;
+  }
+  if (isPdfFile(file)) {
+    return PDF_ICON_SRC;
+  }
+  return DOCUMENT_ICON_SRC;
+};
 
 const formatDayLabel = (isoDate: string) => {
   const date = new Date(isoDate);
@@ -871,53 +907,64 @@ const CalendarView = ({ activeProjectId,
 
               {day.files.length > 0 && (
                 <div className="calendar__files">
-                  {day.files.map((file) => (
-                    <div key={file.id} className="calendar__file">
-                      <div className="calendar__file-header">
-                        <div className="calendar__file-meta">
-                          <span className="calendar__file-name">{file.name}</span>
-                          <small>{formatFileSize(file.size)}</small>
-                          {file.uploadedByName && <small>Uploaded by {file.uploadedByName}</small>}
-                        </div>
-                        <div className="calendar__post-menu-wrapper" data-action-menu={`file:${file.id}`}>
-                          <button
-                            type="button"
-                            className="calendar__post-menu-toggle"
-                            aria-haspopup="true"
-                            aria-expanded={openActionMenuKey === `file:${file.id}`}
-                            aria-label="Show file actions"
-                            onClick={() => toggleActionMenu(`file:${file.id}`)}
-                          >
-                            &#8230;
-                          </button>
-                          {openActionMenuKey === `file:${file.id}` && (
-                            <div className="calendar__post-menu" role="menu">
-                              <a
-                                className="calendar__post-menu-item"
-                                role="menuitem"
-                                href={file.url}
-                                download={file.name}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={() => setOpenActionMenuKey(null)}
-                              >
-                                Download
-                              </a>
-                              <button
-                                type="button"
-                                className="calendar__post-menu-item calendar__post-menu-item--danger"
-                                role="menuitem"
-                                onClick={() => handleFileDelete(day.date, file.id)}
-                                disabled={pendingDeleteFileId === file.id}
-                              >
-                                {pendingDeleteFileId === file.id ? "Removing..." : "Delete"}
-                              </button>
+                  {day.files.map((file) => {
+                    const iconSrc = getFileIconSrc(file);
+                    return (
+                      <div key={file.id} className="calendar__file">
+                        <div className="calendar__file-header">
+                          <div className="calendar__file-info">
+                            <img
+                              src={iconSrc}
+                              alt=""
+                              className="calendar__file-icon"
+                              aria-hidden="true"
+                            />
+                            <div className="calendar__file-meta">
+                              <span className="calendar__file-name">{file.name}</span>
+                              <small>{formatFileSize(file.size)}</small>
+                              {file.uploadedByName && <small>Uploaded by {file.uploadedByName}</small>}
                             </div>
-                          )}
+                          </div>
+                          <div className="calendar__post-menu-wrapper" data-action-menu={`file:${file.id}`}>
+                            <button
+                              type="button"
+                              className="calendar__post-menu-toggle"
+                              aria-haspopup="true"
+                              aria-expanded={openActionMenuKey === `file:${file.id}`}
+                              aria-label="Show file actions"
+                              onClick={() => toggleActionMenu(`file:${file.id}`)}
+                            >
+                              &#8230;
+                            </button>
+                            {openActionMenuKey === `file:${file.id}` && (
+                              <div className="calendar__post-menu" role="menu">
+                                <a
+                                  className="calendar__post-menu-item"
+                                  role="menuitem"
+                                  href={file.url}
+                                  download={file.name}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={() => setOpenActionMenuKey(null)}
+                                >
+                                  Download
+                                </a>
+                                <button
+                                  type="button"
+                                  className="calendar__post-menu-item calendar__post-menu-item--danger"
+                                  role="menuitem"
+                                  onClick={() => handleFileDelete(day.date, file.id)}
+                                  disabled={pendingDeleteFileId === file.id}
+                                >
+                                  {pendingDeleteFileId === file.id ? "Removing..." : "Delete"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -1058,4 +1105,3 @@ const CalendarView = ({ activeProjectId,
 };
 
 export default CalendarView;
-
