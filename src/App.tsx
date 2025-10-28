@@ -688,7 +688,6 @@ const notifyChangeOrder = useCallback(
           );
         }
 
-        console.log("mappedProjects for", session?.user?.email, mappedProjects);
         setProjects(mappedProjects);
         setTasks(mappedTasks);
         if (mappedProjects.length > 0) {
