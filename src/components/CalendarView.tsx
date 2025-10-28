@@ -150,6 +150,7 @@ const CalendarView = ({ activeProjectId,
 
   const composerStorageKey = activeProjectId ? `calendarComposerDraft:${activeProjectId}` : null;
   const lastLoadedComposerKeyRef = useRef<string | null>(null);
+  const previewDialogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || !composerStorageKey) {
@@ -209,6 +210,26 @@ const CalendarView = ({ activeProjectId,
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [previewAttachment]);
+
+  useEffect(() => {
+    if (!previewAttachment || typeof window === "undefined") {
+      return;
+    }
+    const rafId = window.requestAnimationFrame(() => {
+      const dialog = previewDialogRef.current;
+      if (!dialog) {
+        return;
+      }
+      dialog.focus({ preventScroll: true });
+      dialog.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(rafId);
     };
   }, [previewAttachment]);
 
@@ -984,6 +1005,8 @@ const CalendarView = ({ activeProjectId,
             role="dialog"
             aria-modal="true"
             aria-label="Image attachment preview"
+            tabIndex={-1}
+            ref={previewDialogRef}
           >
             <div className="modal__preview-header">
               <div className="modal__preview-heading">
