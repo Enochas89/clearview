@@ -47,26 +47,38 @@ as $$
   );
 $$;
 
+<<<<<<< HEAD
 drop policy if exists "Allow project users to read change orders" on public.change_orders;
+=======
+>>>>>>> 44ba67cd3a6c436736fbd4546f80b1903c9b24e5
 create policy "Allow project users to read change orders"
   on public.change_orders
   for select
   using (public.is_project_member(project_id));
 
+<<<<<<< HEAD
 drop policy if exists "Allow project users to insert change orders" on public.change_orders;
+=======
+>>>>>>> 44ba67cd3a6c436736fbd4546f80b1903c9b24e5
 create policy "Allow project users to insert change orders"
   on public.change_orders
   for insert
   with check (public.is_project_member(project_id));
 
+<<<<<<< HEAD
 drop policy if exists "Allow project users to update change orders" on public.change_orders;
+=======
+>>>>>>> 44ba67cd3a6c436736fbd4546f80b1903c9b24e5
 create policy "Allow project users to update change orders"
   on public.change_orders
   for update
   using (public.is_project_member(project_id))
   with check (public.is_project_member(project_id));
 
+<<<<<<< HEAD
 drop policy if exists "Allow project users to delete change orders" on public.change_orders;
+=======
+>>>>>>> 44ba67cd3a6c436736fbd4546f80b1903c9b24e5
 create policy "Allow project users to delete change orders"
   on public.change_orders
   for delete
