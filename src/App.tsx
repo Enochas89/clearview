@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CalendarView from "./components/CalendarView";
+import AccountSettings from "./components/AccountSettings";
 import ChangeOrders from "./components/ChangeOrders";
 import GanttChart from "./components/GanttChart";
 import Sidebar from "./components/Sidebar";
@@ -284,7 +285,10 @@ function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeMainTab, setActiveMainTab] = useState<"timeline" | "changeOrders">("timeline");
+  const [activeMainTab, setActiveMainTab] = useState<"timeline" | "changeOrders" | "account">("timeline");
+  const [isUpdatingAccount, setIsUpdatingAccount] = useState(false);
+  const [accountUpdateError, setAccountUpdateError] = useState<string | null>(null);
+  const [accountUpdateSuccess, setAccountUpdateSuccess] = useState<string | null>(null);
 
   const loadDayEntries = useCallback(
     async (projectId: string) => {
@@ -726,6 +730,29 @@ const notifyChangeOrder = useCallback(
     }
   }, [selectedProjectId, loadDayEntries, loadChangeOrders, loadProjectMembers]);
 
+  useEffect(() => {
+    if (!accountUpdateSuccess) {
+      return;
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setAccountUpdateSuccess(null);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [accountUpdateSuccess]);
+
+  useEffect(() => {
+    if (activeMainTab === "account") {
+      return;
+    }
+    if (accountUpdateError || accountUpdateSuccess) {
+      setAccountUpdateError(null);
+      setAccountUpdateSuccess(null);
+    }
+  }, [activeMainTab]);
+
   const handleSignOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -739,6 +766,46 @@ const notifyChangeOrder = useCallback(
     } catch (err: any) {
       console.error("Error signing out:", err);
       setError(err.message || "Failed to sign out.");
+    }
+  };
+
+  const handleUpdateAccount = async ({ fullName }: { fullName: string }) => {
+    if (!session?.user) {
+      return;
+    }
+    const trimmed = fullName.trim();
+    if (!trimmed) {
+      setAccountUpdateError(null);
+      setAccountUpdateSuccess(null);
+      return;
+    }
+    const currentName = session.user.user_metadata?.full_name ?? "";
+    if (currentName === trimmed) {
+      setAccountUpdateError(null);
+      setAccountUpdateSuccess("You're already using this name.");
+      return;
+    }
+
+    setIsUpdatingAccount(true);
+    setAccountUpdateError(null);
+    setAccountUpdateSuccess(null);
+
+    try {
+      const { data, error: updateError } = await supabase.auth.updateUser({
+        data: { full_name: trimmed },
+      });
+      if (updateError) {
+        throw updateError;
+      }
+      if (data?.user) {
+        setSession((prev) => (prev ? { ...prev, user: data.user } : prev));
+      }
+      setAccountUpdateSuccess("Profile updated.");
+    } catch (err: any) {
+      console.error("Error updating account:", err);
+      setAccountUpdateError(err?.message || "Failed to update profile.");
+    } finally {
+      setIsUpdatingAccount(false);
     }
   };
 
@@ -1574,29 +1641,39 @@ const notifyChangeOrder = useCallback(
           onSignOut={handleSignOut}
         />
         <main className="app__main">
-          {projects.length > 0 ? (
+          <div className="app__tabs" role="tablist" aria-label="Workspace view">
+            <button
+              type="button"
+              className={`app__tab${activeMainTab === "timeline" ? " is-active" : ""}`}
+              role="tab"
+              aria-selected={activeMainTab === "timeline"}
+              onClick={() => setActiveMainTab("timeline")}
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              className={`app__tab${activeMainTab === "changeOrders" ? " is-active" : ""}`}
+              role="tab"
+              aria-selected={activeMainTab === "changeOrders"}
+              onClick={() => setActiveMainTab("changeOrders")}
+            >
+              Change Orders
+            </button>
+            <button
+              type="button"
+              className={`app__tab${activeMainTab === "account" ? " is-active" : ""}`}
+              role="tab"
+              aria-selected={activeMainTab === "account"}
+              onClick={() => setActiveMainTab("account")}
+            >
+              Account
+            </button>
+          </div>
+          
+          {activeMainTab === "timeline" && (
             <>
-              <div className="app__tabs" role="tablist" aria-label="Workspace view">
-                <button
-                  type="button"
-                  className={`app__tab${activeMainTab === "timeline" ? " is-active" : ""}`}
-                  role="tab"
-                  aria-selected={activeMainTab === "timeline"}
-                  onClick={() => setActiveMainTab("timeline")}
-                >
-                  Timeline
-                </button>
-                <button
-                  type="button"
-                  className={`app__tab${activeMainTab === "changeOrders" ? " is-active" : ""}`}
-                  role="tab"
-                  aria-selected={activeMainTab === "changeOrders"}
-                  onClick={() => setActiveMainTab("changeOrders")}
-                >
-                  Change Orders
-                </button>
-              </div>
-              {activeMainTab === "timeline" ? (
+              {projects.length > 0 ? (
                 <>
                   <CalendarView
                     activeProjectId={selectedProjectId}
@@ -1607,7 +1684,7 @@ const notifyChangeOrder = useCallback(
                     onUpdatePost={handleUpdatePost}
                     onDeletePost={handleDeletePost}
                     recentActivities={recentActivities}
-                    upcomingDueTasks={upcomingTaskReminders}
+                    upcomingDueTasks={upcomingDueTasks}
                   />
                   <GanttChart
                     tasks={visibleTasks}
@@ -1618,6 +1695,17 @@ const notifyChangeOrder = useCallback(
                   />
                 </>
               ) : (
+                <div className="app__empty-state">
+                  <h2>No projects yet!</h2>
+                  <p>Create a new project in the sidebar to get started.</p>
+                </div>
+              )}
+            </>
+          )}
+          
+          {activeMainTab === "changeOrders" && (
+            <>
+              {projects.length > 0 && selectedProjectId ? (
                 <ChangeOrders
                   project={activeProject}
                   orders={changeOrders}
@@ -1626,13 +1714,23 @@ const notifyChangeOrder = useCallback(
                   onChangeStatus={handleChangeOrderStatus}
                   isLoading={loading}
                 />
+              ) : (
+                <div className="app__empty-state">
+                  <h2>Select a project</h2>
+                  <p>Choose a project from the sidebar to manage change orders.</p>
+                </div>
               )}
             </>
-          ) : (
-            <div className="app__empty-state">
-              <h2>No projects yet!</h2>
-              <p>Create a new project in the sidebar to get started.</p>
-            </div>
+          )}
+          
+          {activeMainTab === "account" && (
+            <AccountSettings
+              user={session.user}
+              onUpdateProfile={handleUpdateAccount}
+              isSaving={isUpdatingAccount}
+              errorMessage={accountUpdateError}
+              successMessage={accountUpdateSuccess}
+            />
           )}
         </main>
       </div>
