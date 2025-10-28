@@ -797,12 +797,9 @@ const CalendarView = ({ activeProjectId,
                               </>
                             ) : (
                               <div className="calendar__recent-attachment-content">
-                                <img
-                                  src={iconSrc}
-                                  alt=""
-                                  className="calendar__attachment-icon"
-                                  aria-hidden="true"
-                                />
+                                <span className="calendar__icon" aria-hidden="true">
+                                  <img src={iconSrc} alt="" loading="lazy" />
+                                </span>
                                 <div className="calendar__recent-attachment-copy">
                                   <span>{attachment.name}</span>
                                   <small>{formatFileSize(attachment.size)}</small>
@@ -925,12 +922,9 @@ const CalendarView = ({ activeProjectId,
                                   </>
                                 ) : (
                                   <div className="calendar__post-attachment-content">
-                                    <img
-                                      src={iconSrc}
-                                      alt=""
-                                      className="calendar__attachment-icon"
-                                      aria-hidden="true"
-                                    />
+                                    <span className="calendar__icon" aria-hidden="true">
+                                      <img src={iconSrc} alt="" loading="lazy" />
+                                    </span>
                                     <div className="calendar__post-attachment-meta">
                                       <span>{attachment.name}</span>
                                       <small>{formatFileSize(attachment.size)}</small>
@@ -955,12 +949,9 @@ const CalendarView = ({ activeProjectId,
                       <div key={file.id} className="calendar__file">
                         <div className="calendar__file-header">
                           <div className="calendar__file-info">
-                            <img
-                              src={iconSrc}
-                              alt=""
-                              className="calendar__file-icon"
-                              aria-hidden="true"
-                            />
+                            <span className="calendar__icon" aria-hidden="true">
+                              <img src={iconSrc} alt="" loading="lazy" />
+                            </span>
                             <div className="calendar__file-meta">
                               <span className="calendar__file-name">{file.name}</span>
                               <small>{formatFileSize(file.size)}</small>
