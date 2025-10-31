@@ -6,6 +6,7 @@ import { NotificationCenter, useNotifications } from "../workspace/NotificationC
 import TimelineView from "../features/timeline/TimelineView";
 import ChangeOrdersView from "../features/change-orders/ChangeOrdersView";
 import AccountView from "../features/account/AccountView";
+import GanttView from "../features/gantt/GanttView";
 import { useWorkspaceStore } from "../workspace/useWorkspaceStore";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 import type { WorkspaceTab } from "./WorkspaceTabs";
@@ -13,12 +14,14 @@ import AppLoadingScreen from "./AppLoadingScreen";
 
 const ROUTE_TO_TAB: Record<string, WorkspaceTab> = {
   timeline: "timeline",
+  gantt: "gantt",
   "change-orders": "changeOrders",
   account: "account",
 };
 
 const TAB_COMPONENT: Record<WorkspaceTab, React.ReactNode> = {
   timeline: <TimelineView />,
+  gantt: <GanttView />,
   changeOrders: <ChangeOrdersView />,
   account: <AccountView />,
 };

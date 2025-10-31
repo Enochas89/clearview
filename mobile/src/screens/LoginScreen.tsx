@@ -26,7 +26,7 @@ export const LoginScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.title}>Clearview</Text>
+        <Text style={styles.title}>Clear View Teams</Text>
         <Text style={styles.subtitle}>Sign in to access your projects</Text>
         <TextInput
           style={styles.input}

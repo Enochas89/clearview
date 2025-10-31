@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Clearview Mobile",
-    "slug": "clearview-mobile",
+    "name": "Clear View Teams Mobile",
+    "slug": "clear-view-teams-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,7 +33,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "clearview-mobile-placeholder"
+        "projectId": "clear-view-teams-mobile-placeholder"
       }
     }
   }

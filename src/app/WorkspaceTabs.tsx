@@ -1,4 +1,4 @@
-type WorkspaceTab = "timeline" | "changeOrders" | "account";
+type WorkspaceTab = "timeline" | "gantt" | "changeOrders" | "account";
 
 type WorkspaceTabsProps = {
   activeTab: WorkspaceTab;
@@ -7,6 +7,7 @@ type WorkspaceTabsProps = {
 
 const TABS: Array<{ id: WorkspaceTab; label: string }> = [
   { id: "timeline", label: "Timeline" },
+  { id: "gantt", label: "Gantt" },
   { id: "changeOrders", label: "Change Orders" },
   { id: "account", label: "Account" },
 ];
@@ -29,4 +30,3 @@ export const WorkspaceTabs = ({ activeTab, onSelect }: WorkspaceTabsProps) => (
 );
 
 export type { WorkspaceTab };
-

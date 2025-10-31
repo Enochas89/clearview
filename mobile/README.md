@@ -1,6 +1,6 @@
-# Clearview Mobile (Expo React Native)
+# Clear View Teams Mobile (Expo React Native)
 
-This directory contains the starting point for Clearview’s mobile companion app built with [Expo](https://expo.dev/) and React Native. The goal is to mirror the core web experience (auth, project list, daily timeline) while reusing Supabase as the backend.
+This directory contains the starting point for the **Clear View Teams** mobile companion app built with [Expo](https://expo.dev/) and React Native. The goal is to mirror the core web experience (auth, project list, daily timeline) while reusing Supabase as the backend.
 
 ## Prerequisites
 
@@ -19,16 +19,16 @@ npm install
 npm start
 ```
 
-By default Expo looks for environment variables prefixed with `EXPO_PUBLIC_…`. You can place them in:
+By default Expo looks for environment variables prefixed with `EXPO_PUBLIC_`. You can place them in:
 
 - `app.json` → `"expo": { "extra": { "EXPO_PUBLIC_SUPABASE_URL": "...", ... }}`
-- or a `.env` file (requires `expo dotenv` plugin if you prefer that route).
+- or a `.env` file (requires the `expo dotenv` plugin if you prefer that route)
 
 ### Scripts
 
 - `npm start` – start the Expo dev server
-- `npm run android` / `ios` – launch simulator
-- `npm run web` – run in browser for quick layout checks
+- `npm run android` / `npm run ios` – launch the simulator
+- `npm run web` – run in the browser for quick layout checks
 
 ## Project Structure
 
@@ -47,9 +47,9 @@ mobile/
 
 ## Next Steps
 
-- Flesh out timeline to match the web UI (files, posts, uploads).
+- Flesh out the timeline to match the web UI (files, posts, uploads).
 - Add project member management, change orders, etc.
-- Integrate push notifications / offline cache as mobile-first enhancements.
+- Integrate push notifications or offline caching as mobile-first enhancements.
 - Polish styling and add dark-mode toggles or system theming.
 
 Happy shipping!
