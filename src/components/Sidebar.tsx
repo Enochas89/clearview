@@ -1,9 +1,14 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { InviteMemberResult, Project, ProjectMember } from "../types";
-import logo from '../assets/logo.png';
+import logo from "../assets/logo.png";
 import ProjectMembersPanel from "./ProjectMembersPanel";
-
-type ProjectFormState = Omit<Project, "id" | "createdAt">;
+import ProjectFormCard from "../features/sidebar/ProjectFormCard";
+import {
+  defaultProjectFormValues,
+  projectFormHasContent,
+  mapProjectToFormValues,
+  ProjectFormValues,
+} from "../features/sidebar/projectForm";
 
 type SidebarProps = {
   projects: Project[];
@@ -13,9 +18,9 @@ type SidebarProps = {
   currentUserEmail: string | null;
   memberInviteFallback?: boolean;
   onSelectProject: (projectId: string) => void;
-  onCreateProject: (input: ProjectFormState) => void;
-  onUpdateProject: (projectId: string, input: ProjectFormState) => void;
-  onDeleteProject: (projectId: string) => void;
+  onCreateProject: (input: ProjectFormValues) => Promise<void> | void;
+  onUpdateProject: (projectId: string, input: ProjectFormValues) => Promise<void> | void;
+  onDeleteProject: (projectId: string) => Promise<void> | void;
   onInviteMember: (input: {
     projectId: string;
     email: string;
@@ -25,18 +30,6 @@ type SidebarProps = {
   onUpdateMemberRole: (memberId: string, role: "owner" | "editor" | "viewer") => Promise<void> | void;
   onRemoveMember: (memberId: string) => Promise<void> | void;
   onSignOut: () => void;
-};
-
-const emptyProjectForm: ProjectFormState = {
-  name: "",
-  description: "",
-  color: "#2563eb",
-  referenceId: "",
-  cost: "",
-  address: "",
-  projectManager: "",
-  startDate: "",
-  dueDate: "",
 };
 
 const PROJECT_FORM_DRAFT_KEY = "projectFormDraft";
@@ -56,7 +49,7 @@ const Sidebar = ({
   onRemoveMember,
   onSignOut,
 }: SidebarProps) => {
-  const writeStoredProjectForm = (value: ProjectFormState) => {
+  const writeStoredProjectForm = (value: ProjectFormValues) => {
     if (typeof window === "undefined") {
       return;
     }
@@ -78,7 +71,7 @@ const Sidebar = ({
     }
   };
 
-  const readStoredProjectForm = (): ProjectFormState | null => {
+  const readStoredProjectForm = (): ProjectFormValues | null => {
     if (typeof window === "undefined") {
       return null;
     }
@@ -92,7 +85,7 @@ const Sidebar = ({
         return null;
       }
       return {
-        ...emptyProjectForm,
+        ...defaultProjectFormValues,
         ...parsed,
       };
     } catch (error) {
@@ -103,38 +96,13 @@ const Sidebar = ({
 
   const initialProjectFormDraft = useMemo(() => readStoredProjectForm(), []);
 
-  const [projectForm, setProjectForm] = useState<ProjectFormState>(() => initialProjectFormDraft ?? emptyProjectForm);
+  const [projectFormDefaults, setProjectFormDefaults] = useState<ProjectFormValues>(
+    () => initialProjectFormDraft ?? defaultProjectFormValues,
+  );
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [isProjectFormOpen, setIsProjectFormOpen] = useState(() => Boolean(initialProjectFormDraft));
   const [isMembersPanelOpen, setIsMembersPanelOpen] = useState(false);
   const memberCount = members.length;
-
-  const projectFormHasContent = (form: ProjectFormState) =>
-    Boolean(
-      form.name.trim() ||
-        form.referenceId.trim() ||
-        form.address.trim() ||
-        form.projectManager.trim() ||
-        form.cost.trim() ||
-        form.startDate.trim() ||
-        form.dueDate.trim() ||
-        form.description.trim() ||
-        form.color !== emptyProjectForm.color,
-    );
-
-  useEffect(() => {
-    if (!isProjectFormOpen || editingProjectId) {
-      return;
-    }
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (!projectFormHasContent(projectForm)) {
-      clearStoredProjectForm();
-      return;
-    }
-    writeStoredProjectForm(projectForm);
-  }, [projectForm, isProjectFormOpen, editingProjectId]);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -149,7 +117,7 @@ const Sidebar = ({
 
   const finalizeProjectFormSubmission = () => {
     clearStoredProjectForm();
-    setProjectForm(emptyProjectForm);
+    setProjectFormDefaults(defaultProjectFormValues);
     setEditingProjectId(null);
     setIsProjectFormOpen(false);
   };
@@ -157,69 +125,55 @@ const Sidebar = ({
   const handleProjectButtonClick = () => {
     if (isProjectFormOpen || editingProjectId) {
       closeProjectForm();
-    } else {
-      const storedDraft = readStoredProjectForm();
-      setProjectForm(storedDraft ?? emptyProjectForm);
-      setEditingProjectId(null);
-      setIsProjectFormOpen(true);
-    }
-  };
-
-  const handleProjectSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (
-      !projectForm.name.trim() ||
-      !projectForm.referenceId.trim() ||
-      !projectForm.address.trim() ||
-      !projectForm.projectManager.trim() ||
-      !projectForm.cost.trim() ||
-      !projectForm.startDate.trim() ||
-      !projectForm.dueDate.trim()
-    ) {
       return;
     }
-
-    if (editingProjectId) {
-      const result = onUpdateProject(editingProjectId, projectForm);
-      if (result && typeof (result as PromiseLike<void>).then === "function") {
-        (result as PromiseLike<void>)
-          .then(() => {
-            finalizeProjectFormSubmission();
-          })
-          .catch(() => {
-            // Keep the form open so the user can review the error surfaced elsewhere.
-          });
-      } else {
-        finalizeProjectFormSubmission();
-      }
-    } else {
-      const result = onCreateProject(projectForm);
-      if (result && typeof (result as PromiseLike<void>).then === "function") {
-        (result as PromiseLike<void>)
-          .then(() => {
-            finalizeProjectFormSubmission();
-          })
-          .catch(() => {
-            // Keep the form open so the user can review the error surfaced elsewhere.
-          });
-      } else {
-        finalizeProjectFormSubmission();
-      }
-    }
+    const storedDraft = readStoredProjectForm();
+    setProjectFormDefaults(storedDraft ?? defaultProjectFormValues);
+    setEditingProjectId(null);
+    setIsProjectFormOpen(true);
   };
 
+  const handleProjectSubmit = useCallback(
+    async (values: ProjectFormValues) => {
+      if (editingProjectId) {
+        await Promise.resolve(onUpdateProject(editingProjectId, values));
+      } else {
+        await Promise.resolve(onCreateProject(values));
+      }
+      finalizeProjectFormSubmission();
+    },
+    [editingProjectId, onCreateProject, onUpdateProject],
+  );
+
+  const handleProjectDelete = useCallback(async () => {
+    if (!editingProjectId) {
+      return;
+    }
+    try {
+      await Promise.resolve(onDeleteProject(editingProjectId));
+      finalizeProjectFormSubmission();
+    } catch (error) {
+      // Notification already handled upstream
+      throw error;
+    }
+  }, [editingProjectId, onDeleteProject, finalizeProjectFormSubmission]);
+
+  const handleDraftChange = useCallback(
+    (draft: ProjectFormValues) => {
+      if (editingProjectId) {
+        return;
+      }
+      if (projectFormHasContent(draft)) {
+        writeStoredProjectForm(draft);
+      } else {
+        clearStoredProjectForm();
+      }
+    },
+    [editingProjectId],
+  );
+
   const beginProjectEdit = (project: Project) => {
-    setProjectForm({
-      name: project.name,
-      description: project.description,
-      color: project.color,
-      referenceId: project.referenceId,
-      cost: project.cost,
-      address: project.address,
-      projectManager: project.projectManager,
-      startDate: project.startDate,
-      dueDate: project.dueDate,
-    });
+    setProjectFormDefaults(mapProjectToFormValues(project));
     setEditingProjectId(project.id);
     setIsProjectFormOpen(true);
   };
@@ -280,115 +234,14 @@ const Sidebar = ({
           {projects.length === 0 && <div className="sidebar__empty">Create your first project to get started.</div>}
         </div>
         {isProjectFormOpen && (
-          <form className="sidebar__form sidebar__form--card" onSubmit={handleProjectSubmit}>
-            <h3>{editingProjectId ? "Edit project" : "Add project"}</h3>
-            <label>
-              Project ID
-              <input
-                type="text"
-                value={projectForm.referenceId}
-                onChange={(event) => setProjectForm((prev) => ({ ...prev, referenceId: event.target.value }))}
-                placeholder="PRJ-1000"
-                required
-              />
-            </label>
-            <label>
-              Name
-              <input
-                type="text"
-                value={projectForm.name}
-                onChange={(event) => setProjectForm((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="Project name"
-                required
-              />
-            </label>
-            <label>
-              Description
-              <input
-                type="text"
-                value={projectForm.description}
-                onChange={(event) => setProjectForm((prev) => ({ ...prev, description: event.target.value }))}
-                placeholder="What are we building?"
-              />
-            </label>
-            <label>
-              Address
-              <input
-                type="text"
-                value={projectForm.address}
-                onChange={(event) => setProjectForm((prev) => ({ ...prev, address: event.target.value }))}
-                placeholder="123 Main Street, City, State"
-                required
-              />
-            </label>
-            <label>
-              Project Manager
-              <input
-                type="text"
-                value={projectForm.projectManager}
-                onChange={(event) => setProjectForm((prev) => ({ ...prev, projectManager: event.target.value }))}
-                placeholder="Who is leading this?"
-                required
-              />
-            </label>
-            <div className="sidebar__form-grid">
-              <label>
-                Start Date
-                <input
-                  type="date"
-                  value={projectForm.startDate}
-                  onChange={(event) => setProjectForm((prev) => ({ ...prev, startDate: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                Due Date
-                <input
-                  type="date"
-                  value={projectForm.dueDate}
-                  onChange={(event) => setProjectForm((prev) => ({ ...prev, dueDate: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                Cost
-                <input
-                  type="text"
-                  value={projectForm.cost}
-                  onChange={(event) => setProjectForm((prev) => ({ ...prev, cost: event.target.value }))}
-                  placeholder="$10,000"
-                  required
-                />
-              </label>
-              <label>
-                Accent color
-                <input
-                  type="color"
-                  value={projectForm.color}
-                  onChange={(event) => setProjectForm((prev) => ({ ...prev, color: event.target.value }))}
-                />
-              </label>
-            </div>
-            <div className="sidebar__form-actions">
-              {editingProjectId && (
-                <button
-                  type="button"
-                  className="sidebar__danger"
-                  onClick={() => {
-                    if (editingProjectId) {
-                      onDeleteProject(editingProjectId);
-                      closeProjectForm();
-                    }
-                  }}
-                >
-                  Delete project
-                </button>
-              )}
-              <button type="submit" className="sidebar__primary">
-                {editingProjectId ? "Save changes" : "Create project"}
-              </button>
-            </div>
-          </form>
+          <ProjectFormCard
+            initialValues={projectFormDefaults}
+            isEditing={Boolean(editingProjectId)}
+            onSubmit={handleProjectSubmit}
+            onDelete={editingProjectId ? handleProjectDelete : undefined}
+            onCancel={closeProjectForm}
+            onDraftChange={!editingProjectId ? handleDraftChange : undefined}
+          />
         )}
       </section>
 

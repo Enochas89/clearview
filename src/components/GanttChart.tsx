@@ -534,7 +534,7 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
               <header className="modal__header">
                 <h3>{editingTaskId ? "Edit task" : "Add task"}</h3>
                 <button type="button" className="modal__close" onClick={closeModal} aria-label="Close task form">
-                  ×
+                  &times;
                 </button>
               </header>
               <label>

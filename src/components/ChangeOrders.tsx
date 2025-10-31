@@ -1,12 +1,6 @@
-import {
-  ChangeEvent,
-  Dispatch,
-  FormEvent,
-  SetStateAction,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
+import { useNotifications } from "../workspace/NotificationContext";
 import {
   ChangeOrder,
   ChangeOrderLineItem,
@@ -264,6 +258,344 @@ const formatRelativeTime = (isoDate: string | null | undefined) => {
   return rtf.format(months, "month");
 };
 
+
+const ChangeOrderComposer = ({
+  project,
+  onCreate,
+}: {
+  project: Project | null;
+  onCreate: ChangeOrdersProps["onCreate"];
+}) => {
+  const { push } = useNotifications();
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    setError,
+    clearErrors,
+    formState: { errors, isSubmitting },
+  } = useForm<ChangeOrderFormState>({
+    defaultValues: createEmptyForm(),
+  });
+
+  const {
+    fields: lineItemFields,
+    append: appendLineItem,
+    remove: removeLineItem,
+  } = useFieldArray({ control, name: "lineItems" });
+
+  const {
+    fields: recipientFields,
+    append: appendRecipient,
+    remove: removeRecipient,
+  } = useFieldArray({ control, name: "recipients" });
+
+  const watchedLineItems = watch("lineItems");
+  const watchedRecipients = watch("recipients");
+  const primaryRecipientEmail = watch("recipientEmail");
+
+  const createLineItemCount = useMemo(
+    () => countLineItemDrafts(watchedLineItems),
+    [watchedLineItems],
+  );
+  const createRecipientCount = useMemo(
+    () => countRecipientDrafts(primaryRecipientEmail, watchedRecipients),
+    [primaryRecipientEmail, watchedRecipients],
+  );
+  const createTotalCost = useMemo(
+    () => calculateTotalCost(watchedLineItems),
+    [watchedLineItems],
+  );
+
+  const onSubmit = handleSubmit(async (values) => {
+    clearErrors("root");
+
+    const subject = values.subject.trim();
+    if (!subject) {
+      setError("subject", { type: "required", message: "Subject is required." });
+      push("error", "Subject is required.");
+      return;
+    }
+
+    const recipientEmail = values.recipientEmail.trim();
+    const recipientPayload = buildRecipientPayload(
+      values.recipientName,
+      recipientEmail,
+      values.recipients,
+    );
+
+    if (recipientPayload.length === 0) {
+      setError("root", { type: "manual", message: "Add at least one recipient email." });
+      push("error", "Add at least one recipient email.");
+      return;
+    }
+
+    try {
+      const lineItems = pruneLineItems(normalizeLineItems(values.lineItems));
+      await Promise.resolve(
+        onCreate({
+          subject,
+          description: values.description,
+          recipientName: values.recipientName,
+          recipientEmail,
+          lineItems,
+          recipients: recipientPayload,
+        }),
+      );
+      reset(createEmptyForm());
+      clearErrors();
+    } catch (error: any) {
+      setError("root", {
+        type: "manual",
+        message: error?.message ?? "Failed to create change order.",
+      });
+      throw error;
+    }
+  });
+
+  const handleClearForm = () => {
+    reset(createEmptyForm());
+    clearErrors();
+  };
+
+  const handleAddLineItem = () => appendLineItem(createEmptyLineItemDraft());
+  const handleRemoveLineItem = (index: number) => removeLineItem(index);
+
+  const handleAddRecipient = () => appendRecipient(createEmptyRecipientDraft());
+  const handleRemoveRecipient = (index: number) => {
+    if (recipientFields.length <= 1) {
+      return;
+    }
+    removeRecipient(index);
+  };
+
+  if (!project) {
+    return null;
+  }
+
+  return (
+    <section className="change-order-composer" aria-label="Create change order">
+      <form className="change-order-form" onSubmit={onSubmit}>
+        <div className="change-order-modal__layout">
+          <div className="change-order-modal__primary">
+            <section className="change-order-section">
+              <div className="change-order-section__header">
+                <h4>Change order details</h4>
+                <span>Shared with recipients</span>
+              </div>
+              <div className="change-order-form__grid">
+                <label className="change-order-form__field change-order-form__field--span-2">
+                  Subject
+                  <input
+                    {...register("subject")}
+                    placeholder="Describe the change"
+                    disabled={isSubmitting}
+                    required
+                  />
+                  {errors.subject && (
+                    <span className="modal__error">{errors.subject.message}</span>
+                  )}
+                </label>
+                <label className="change-order-form__field">
+                  Recipient name
+                  <input
+                    {...register("recipientName")}
+                    placeholder="Jordan Smith"
+                    disabled={isSubmitting}
+                  />
+                </label>
+                <label className="change-order-form__field">
+                  Recipient email
+                  <input
+                    {...register("recipientEmail")}
+                    type="email"
+                    placeholder="jordan@example.com"
+                    disabled={isSubmitting}
+                    required
+                  />
+                </label>
+                <label className="change-order-form__field change-order-form__field--span-2">
+                  Details
+                  <textarea
+                    {...register("description")}
+                    rows={4}
+                    placeholder="Add context, costs, or next steps"
+                    disabled={isSubmitting}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <div className="change-order-recipients">
+              <div className="change-order-recipients__header">
+                <h4>Recipients</h4>
+                <button
+                  type="button"
+                  className="change-order-recipients__add"
+                  onClick={handleAddRecipient}
+                  disabled={isSubmitting}
+                >
+                  Add recipient
+                </button>
+              </div>
+              {recipientFields.map((field, index) => (
+                <div key={field.id} className="change-order-recipient-row">
+                  <input type="hidden" {...register(`recipients.${index}.id` as const)} defaultValue={field.id} />
+                  <label>
+                    Name
+                    <input
+                      {...register(`recipients.${index}.name` as const)}
+                      placeholder="Recipient name"
+                      disabled={isSubmitting}
+                    />
+                  </label>
+                  <label>
+                    Email
+                    <input
+                      {...register(`recipients.${index}.email` as const)}
+                      type="email"
+                      placeholder="recipient@example.com"
+                      disabled={isSubmitting}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="change-order-recipient-row__remove"
+                    onClick={() => handleRemoveRecipient(index)}
+                    aria-label="Remove recipient"
+                    disabled={isSubmitting || recipientFields.length <= 1}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <p className="change-order-recipients__helper">
+                Each recipient will receive an email with approval options.
+              </p>
+            </div>
+
+            <div className="change-order-line-items">
+              <div className="change-order-line-items__toolbar">
+                <h4>Line items</h4>
+                <button
+                  type="button"
+                  className="change-order-line-items__add"
+                  onClick={handleAddLineItem}
+                  disabled={isSubmitting}
+                >
+                  Add line item
+                </button>
+              </div>
+              <div className="change-order-line-items__grid">
+                <div className="change-order-line-items__grid-head" aria-hidden="true">
+                  <span>Item</span>
+                  <span>Description</span>
+                  <span>Impact (days)</span>
+                  <span>Cost</span>
+                  <span />
+                </div>
+                {lineItemFields.map((field, index) => (
+                  <div key={field.id} className="change-order-line-items__grid-row">
+                    <input type="hidden" {...register(`lineItems.${index}.id` as const)} defaultValue={field.id} />
+                    <label className="change-order-line-items__cell">
+                      <span className="change-order-line-items__cell-title">Item</span>
+                      <input
+                        {...register(`lineItems.${index}.title` as const)}
+                        placeholder={`Item ${index + 1}`}
+                        disabled={isSubmitting}
+                      />
+                    </label>
+                    <label className="change-order-line-items__cell change-order-line-items__cell--description">
+                      <span className="change-order-line-items__cell-title">Description</span>
+                      <textarea
+                        {...register(`lineItems.${index}.description` as const)}
+                        rows={2}
+                        placeholder="Explain the change"
+                        disabled={isSubmitting}
+                      />
+                    </label>
+                    <label className="change-order-line-items__cell change-order-line-items__cell--number">
+                      <span className="change-order-line-items__cell-title">Impact (days)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        {...register(`lineItems.${index}.impactDays` as const)}
+                        disabled={isSubmitting}
+                      />
+                    </label>
+                    <label className="change-order-line-items__cell change-order-line-items__cell--number">
+                      <span className="change-order-line-items__cell-title">Cost</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        {...register(`lineItems.${index}.cost` as const)}
+                        disabled={isSubmitting}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="change-order-line-item__remove"
+                      onClick={() => handleRemoveLineItem(index)}
+                      aria-label={`Remove line item ${index + 1}`}
+                      disabled={isSubmitting}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <aside className="change-order-modal__aside">
+            <div className="change-order-summary-card">
+              <div className="change-order-summary-card__header">
+                <h4>Send overview</h4>
+                <span className="change-order-summary-card__project">
+                  {project
+                    ? [project.name, project.referenceId].filter(Boolean).join(" / ")
+                    : "Workspace change order"}
+                </span>
+              </div>
+              <div className="change-order-summary-card__metrics">
+                <div className="change-order-summary-card__metric">
+                  <span className="change-order-summary-card__label">Recipients</span>
+                  <strong>{createRecipientCount}</strong>
+                </div>
+                <div className="change-order-summary-card__metric">
+                  <span className="change-order-summary-card__label">Line items</span>
+                  <strong>{createLineItemCount}</strong>
+                </div>
+                <div className="change-order-summary-card__metric">
+                  <span className="change-order-summary-card__label">Estimated cost</span>
+                  <strong>{currencyFormatter.format(createTotalCost)}</strong>
+                </div>
+              </div>
+            </div>
+            {errors.root && <p className="modal__error">{errors.root.message}</p>}
+            <div className="modal__actions modal__actions--vertical">
+              <button
+                type="button"
+                className="modal__secondary"
+                onClick={handleClearForm}
+                disabled={isSubmitting}
+              >
+                Clear form
+              </button>
+              <button type="submit" className="modal__primary" disabled={isSubmitting}>
+                {isSubmitting ? "Sending..." : "Send change order"}
+              </button>
+            </div>
+          </aside>
+        </div>
+      </form>
+    </section>
+  );
+};
+
 const ChangeOrders = ({
   project,
   orders,
@@ -272,34 +604,24 @@ const ChangeOrders = ({
   onChangeStatus,
   isLoading = false,
 }: ChangeOrdersProps) => {
+  const { push } = useNotifications();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isResponseOpen, setIsResponseOpen] = useState(false);
   const [responseTarget, setResponseTarget] = useState<{
     id: string;
     status: ChangeOrderStatus;
   } | null>(null);
-
-  const [createForm, setCreateForm] = useState<ChangeOrderFormState>(
-    () => createEmptyForm(),
-  );
   const [responseMessage, setResponseMessage] = useState("");
-
-  const [createError, setCreateError] = useState<string | null>(null);
   const [responseError, setResponseError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isActionSubmitting, setIsActionSubmitting] = useState(false);
 
-  const createTotalCost = useMemo(
-    () => calculateTotalCost(createForm.lineItems),
-    [createForm.lineItems],
-  );
-  const createRecipientCount = useMemo(
-    () => countRecipientDrafts(createForm.recipientEmail, createForm.recipients),
-    [createForm.recipientEmail, createForm.recipients],
-  );
-  const createLineItemCount = useMemo(
-    () => countLineItemDrafts(createForm.lineItems),
-    [createForm.lineItems],
-  );
+  const closeResponseModal = () => {
+    setIsResponseOpen(false);
+    setResponseTarget(null);
+    setResponseMessage("");
+    setResponseError(null);
+    setIsActionSubmitting(false);
+  };
 
   useEffect(() => {
     if (!openMenuId) {
@@ -329,141 +651,13 @@ const ChangeOrders = ({
     [orders],
   );
 
-  const handleCreateChange = (
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    setCreateForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
-    if (createError) {
-      setCreateError(null);
-    }
-  };
-
-  const handleLineItemChange = (
-  formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>,
-    id: string,
-    field: keyof ChangeOrderLineItemDraft,
-    value: string,
-  ) => {
-    formSetter((prev) => ({
-      ...prev,
-      lineItems: prev.lineItems.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item,
-      ),
-    }));
-  };
-
-  const addLineItem = (formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>) => {
-    formSetter((prev) => ({
-      ...prev,
-      lineItems: [...prev.lineItems, createEmptyLineItemDraft()],
-    }));
-  };
-
-  const removeLineItem = (
-    formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>,
-    id: string,
-  ) => {
-    formSetter((prev) => ({
-      ...prev,
-      lineItems: prev.lineItems.filter((item) => item.id !== id),
-    }));
-  };
-
-  const handleRecipientChange = (
-    formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>,
-    id: string,
-    field: keyof ChangeOrderRecipientDraft,
-    value: string,
-  ) => {
-    formSetter((prev) => ({
-      ...prev,
-      recipients: prev.recipients.map((recipient) =>
-        recipient.id === id ? { ...recipient, [field]: value } : recipient,
-      ),
-    }));
-  };
-
-  const addRecipient = (
-    formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>,
-  ) => {
-    formSetter((prev) => ({
-      ...prev,
-      recipients: [...prev.recipients, createEmptyRecipientDraft()],
-    }));
-  };
-
-  const removeRecipient = (
-    formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>,
-    id: string,
-  ) => {
-    formSetter((prev) => ({
-      ...prev,
-      recipients:
-        prev.recipients.length > 1
-          ? prev.recipients.filter((recipient) => recipient.id !== id)
-          : prev.recipients,
-    }));
-  };
-
-  const resetCreateForm = () => {
-    setCreateForm(createEmptyForm());
-    setCreateError(null);
-    setIsSubmitting(false);
-  };
-
-  const closeResponseModal = () => {
-    setIsResponseOpen(false);
-    setResponseTarget(null);
-    setResponseMessage("");
-    setResponseError(null);
-    setIsSubmitting(false);
-  };
-
-  const submitCreate = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!createForm.subject.trim()) {
-      setCreateError("Subject is required.");
-      return;
-    }
-    const recipientEmail = createForm.recipientEmail.trim();
-    const recipientPayload = buildRecipientPayload(
-      createForm.recipientName,
-      recipientEmail,
-      createForm.recipients,
-    );
-    if (recipientPayload.length === 0) {
-      setCreateError("Add at least one recipient email.");
-      return;
-    }
-    try {
-      setIsSubmitting(true);
-      const lineItems = pruneLineItems(normalizeLineItems(createForm.lineItems));
-      await Promise.resolve(
-        onCreate({
-          subject: createForm.subject,
-          description: createForm.description,
-          recipientName: createForm.recipientName,
-          recipientEmail,
-          lineItems,
-          recipients: recipientPayload,
-        }),
-      );
-      resetCreateForm();
-    } catch (err: any) {
-      console.error("Error creating change order:", err);
-      setCreateError(err?.message ?? "Failed to create change order.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleStatusChange = async (
     orderId: string,
     status: ChangeOrderStatus,
     message?: string | null,
   ) => {
     try {
-      setIsSubmitting(true);
+      setIsActionSubmitting(true);
       await Promise.resolve(
         onChangeStatus(orderId, status, { responseMessage: message ?? null }),
       );
@@ -471,9 +665,11 @@ const ChangeOrders = ({
       closeResponseModal();
     } catch (err: any) {
       console.error("Error updating change order status:", err);
-      setResponseError(err?.message ?? "Failed to update status.");
+      const messageText = err?.message ?? "Failed to update status.";
+      setResponseError(messageText);
+      push("error", messageText);
     } finally {
-      setIsSubmitting(false);
+      setIsActionSubmitting(false);
     }
   };
 
@@ -490,6 +686,7 @@ const ChangeOrders = ({
       setOpenMenuId(null);
     } catch (err) {
       console.error("Error deleting change order:", err);
+      push("error", err instanceof Error ? err.message : "Failed to delete change order.");
     }
   };
 
@@ -500,216 +697,13 @@ const ChangeOrders = ({
     setIsResponseOpen(true);
   };
 
-  const renderSummaryCard = (
-    recipientCount: number,
-    lineItemCount: number,
-    totalCost: number,
-  ) => {
-    const projectLabel = project
-      ? [project.name, project.referenceId].filter(Boolean).join(" • ")
-      : "Workspace change order";
 
-    return (
-      <div className="change-order-summary-card">
-        <div className="change-order-summary-card__header">
-          <h4>Send overview</h4>
-          <span className="change-order-summary-card__project">{projectLabel}</span>
-        </div>
-        <div className="change-order-summary-card__metrics">
-          <div className="change-order-summary-card__metric">
-            <span className="change-order-summary-card__label">Recipients</span>
-            <strong>{recipientCount}</strong>
-          </div>
-          <div className="change-order-summary-card__metric">
-            <span className="change-order-summary-card__label">Line items</span>
-            <strong>{lineItemCount}</strong>
-          </div>
-        </div>
-        <div className="change-order-summary change-order-summary--card">
-          <span>Estimated total</span>
-          <strong>{currencyFormatter.format(totalCost)}</strong>
-        </div>
-      </div>
-    );
-  };
-
-  const renderLineItemFields = (
-    form: ChangeOrderFormState,
-    formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>,
-  ) => {
-    return (
-      <div className="change-order-line-items">
-        <div className="change-order-line-items__toolbar">
-          <h4>Line items</h4>
-          <button
-            type="button"
-            className="change-order-line-items__add"
-            onClick={() => addLineItem(formSetter)}
-          >
-            Add line item
-          </button>
-        </div>
-        <div className="change-order-line-items__grid">
-          <div className="change-order-line-items__grid-head" aria-hidden="true">
-            <span>Item</span>
-            <span>Description</span>
-            <span>Impact (days)</span>
-            <span>Cost</span>
-            <span />
-          </div>
-          {form.lineItems.map((item, index) => (
-            <div key={item.id} className="change-order-line-items__grid-row">
-              <label className="change-order-line-items__cell">
-                <span className="change-order-line-items__cell-title">Item</span>
-                <input
-                  value={item.title}
-                  onChange={(event) =>
-                    handleLineItemChange(
-                      formSetter,
-                      item.id,
-                      "title",
-                      event.target.value,
-                    )
-                  }
-                  placeholder={`Item ${index + 1}`}
-                />
-              </label>
-              <label className="change-order-line-items__cell change-order-line-items__cell--description">
-                <span className="change-order-line-items__cell-title">Description</span>
-                <textarea
-                  value={item.description}
-                  onChange={(event) =>
-                    handleLineItemChange(
-                      formSetter,
-                      item.id,
-                      "description",
-                      event.target.value,
-                    )
-                  }
-                  rows={2}
-                  placeholder="Explain the change"
-                />
-              </label>
-              <label className="change-order-line-items__cell change-order-line-items__cell--number">
-                <span className="change-order-line-items__cell-title">Impact (days)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={item.impactDays}
-                  onChange={(event) =>
-                    handleLineItemChange(
-                      formSetter,
-                      item.id,
-                      "impactDays",
-                      event.target.value,
-                    )
-                  }
-                />
-              </label>
-              <label className="change-order-line-items__cell change-order-line-items__cell--number">
-                <span className="change-order-line-items__cell-title">Cost</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={item.cost}
-                  onChange={(event) =>
-                    handleLineItemChange(
-                      formSetter,
-                      item.id,
-                      "cost",
-                      event.target.value,
-                    )
-                  }
-                />
-              </label>
-              <button
-                type="button"
-                className="change-order-line-item__remove"
-                onClick={() => removeLineItem(formSetter, item.id)}
-                aria-label={`Remove line item ${index + 1}`}
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderRecipientFields = (
-    form: ChangeOrderFormState,
-    formSetter: Dispatch<SetStateAction<ChangeOrderFormState>>,
-  ) => (
-    <div className="change-order-recipients">
-      <div className="change-order-recipients__header">
-        <h4>Recipients</h4>
-        <button
-          type="button"
-          className="change-order-recipients__add"
-          onClick={() => addRecipient(formSetter)}
-        >
-          Add recipient
-        </button>
-      </div>
-      {form.recipients.map((recipient) => (
-        <div key={recipient.id} className="change-order-recipient-row">
-          <label>
-            Name
-            <input
-              type="text"
-              value={recipient.name}
-              onChange={(event) =>
-                handleRecipientChange(
-                  formSetter,
-                  recipient.id,
-                  "name",
-                  event.target.value,
-                )
-              }
-              placeholder="Recipient name"
-            />
-          </label>
-          <label>
-            Email
-            <input
-              type="email"
-              value={recipient.email}
-              onChange={(event) =>
-                handleRecipientChange(
-                  formSetter,
-                  recipient.id,
-                  "email",
-                  event.target.value,
-                )
-              }
-              placeholder="recipient@example.com"
-              required={form.recipients.length === 1}
-            />
-          </label>
-          <button
-            type="button"
-            className="change-order-recipient-row__remove"
-            onClick={() => removeRecipient(formSetter, recipient.id)}
-            aria-label="Remove recipient"
-          >
-            Remove
-          </button>
-        </div>
-      ))}
-      <p className="change-order-recipients__helper">
-        Each recipient will receive an email with approval options.
-      </p>
-    </div>
-  );
 
   return (
     <section className="change-orders">
       <header className="change-orders__header">
         <div className="change-orders__title">
-          <span className="change-orders__badge" aria-hidden="true">✦</span>
+          <span className="change-orders__badge" aria-hidden="true">*</span>
           <div>
             <h2>Change Orders</h2>
             <p>Send, track, and approve change requests for this project.</p>
@@ -736,87 +730,7 @@ const ChangeOrders = ({
         )}
       </div>
 
-      {project && (
-        <section className="change-order-composer" aria-label="Create change order">
-          <form className="change-order-form" onSubmit={submitCreate}>
-            <div className="change-order-modal__layout">
-              <div className="change-order-modal__primary">
-                <section className="change-order-section">
-                  <div className="change-order-section__header">
-                    <h4>Change order details</h4>
-                    <span>Shared with recipients</span>
-                  </div>
-                  <div className="change-order-form__grid">
-                    <label className="change-order-form__field change-order-form__field--span-2">
-                      Subject
-                      <input
-                        name="subject"
-                        value={createForm.subject}
-                        onChange={handleCreateChange}
-                        placeholder="Describe the change"
-                        required
-                      />
-                    </label>
-                    <label className="change-order-form__field">
-                      Recipient name
-                      <input
-                        name="recipientName"
-                        value={createForm.recipientName}
-                        onChange={handleCreateChange}
-                        placeholder="Jordan Smith"
-                      />
-                    </label>
-                    <label className="change-order-form__field">
-                      Recipient email
-                      <input
-                        name="recipientEmail"
-                        type="email"
-                        value={createForm.recipientEmail}
-                        onChange={handleCreateChange}
-                        placeholder="jordan@example.com"
-                        required
-                      />
-                    </label>
-                    <label className="change-order-form__field change-order-form__field--span-2">
-                      Details
-                      <textarea
-                        name="description"
-                        rows={4}
-                        value={createForm.description}
-                        onChange={handleCreateChange}
-                        placeholder="Add context, costs, or next steps"
-                      />
-                    </label>
-                  </div>
-                </section>
-                {renderRecipientFields(createForm, setCreateForm)}
-                {renderLineItemFields(createForm, setCreateForm)}
-              </div>
-              <aside className="change-order-modal__aside">
-                {renderSummaryCard(
-                  createRecipientCount,
-                  createLineItemCount,
-                  createTotalCost,
-                )}
-                {createError && <p className="modal__error">{createError}</p>}
-                <div className="modal__actions modal__actions--vertical">
-                  <button
-                    type="button"
-                    className="modal__secondary"
-                    onClick={resetCreateForm}
-                    disabled={isSubmitting}
-                  >
-                    Clear form
-                  </button>
-                  <button type="submit" className="modal__primary" disabled={isSubmitting}>
-                    {isSubmitting ? "Sending..." : "Send change order"}
-                  </button>
-                </div>
-              </aside>
-            </div>
-          </form>
-        </section>
-      )}
+      {project && <ChangeOrderComposer project={project} onCreate={onCreate} />}
 
       <div className="change-orders__results">
         {project ? (
@@ -927,7 +841,7 @@ const ChangeOrders = ({
                         </span>
                         {recipient.conditionNote && (
                           <span className="change-order-card__recipient-note">
-                            “{recipient.conditionNote}”
+                            "{recipient.conditionNote}"
                           </span>
                         )}
                         {recipient.respondedAt && (
@@ -1055,8 +969,8 @@ const ChangeOrders = ({
                 <button type="button" className="modal__secondary" onClick={closeResponseModal}>
                   Cancel
                 </button>
-                <button type="submit" className="modal__primary" disabled={isSubmitting}>
-                  {isSubmitting ? "Sending..." : "Send request"}
+                <button type="submit" className="modal__primary" disabled={isActionSubmitting}>
+                  {isActionSubmitting ? "Sending..." : "Send request"}
                 </button>
               </div>
             </form>

@@ -17,10 +17,7 @@ create index if not exists change_order_recipients_change_order_id_idx
 
 alter table public.change_order_recipients enable row level security;
 
-<<<<<<< HEAD
 drop policy if exists "project members can read recipients" on public.change_order_recipients;
-=======
->>>>>>> 44ba67cd3a6c436736fbd4546f80b1903c9b24e5
 create policy "project members can read recipients"
   on public.change_order_recipients
   for select
@@ -33,10 +30,7 @@ create policy "project members can read recipients"
     )
   );
 
-<<<<<<< HEAD
 drop policy if exists "project members can insert recipients" on public.change_order_recipients;
-=======
->>>>>>> 44ba67cd3a6c436736fbd4546f80b1903c9b24e5
 create policy "project members can insert recipients"
   on public.change_order_recipients
   for insert
@@ -49,10 +43,7 @@ create policy "project members can insert recipients"
     )
   );
 
-<<<<<<< HEAD
 drop policy if exists "project members can update recipients" on public.change_order_recipients;
-=======
->>>>>>> 44ba67cd3a6c436736fbd4546f80b1903c9b24e5
 create policy "project members can update recipients"
   on public.change_order_recipients
   for update
