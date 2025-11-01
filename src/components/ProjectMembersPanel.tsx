@@ -1,4 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { InviteMemberResult, MemberRole, MemberStatus, ProjectMember } from "../types";
 
 type ProjectMembersPanelProps = {
@@ -63,6 +64,7 @@ const ProjectMembersPanel = ({
   const [localError, setLocalError] = useState<string | null>(null);
   const [panelFeedback, setPanelFeedback] = useState<InviteFeedback | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const modalRoot = typeof document !== "undefined" ? document.body : null;
 
   const normalizedCurrentEmail = (currentUserEmail ?? "").toLowerCase();
 
@@ -244,83 +246,86 @@ const ProjectMembersPanel = ({
         </div>
       )}
 
-      {isInviteModalOpen && (
-        <div className="members-modal" role="dialog" aria-modal="true" aria-labelledby="members-invite-title">
-          <div className="members-modal__backdrop" onClick={closeInviteModal} />
-          <div
-            className="members-modal__dialog"
-            role="document"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="members-modal__header">
-              <h3 id="members-invite-title">Invite teammate</h3>
-              <button
-                type="button"
-                className="members-modal__close"
-                onClick={closeInviteModal}
-                disabled={isSubmitting}
+      {modalRoot && isInviteModalOpen
+        ? createPortal(
+            <div className="members-modal" role="dialog" aria-modal="true" aria-labelledby="members-invite-title">
+              <div className="members-modal__backdrop" onClick={closeInviteModal} />
+              <div
+                className="members-modal__dialog"
+                role="document"
+                onClick={(event) => event.stopPropagation()}
               >
-                Close
-              </button>
-            </header>
-            <form className="members-modal__form" onSubmit={handleSubmit}>
-              <label className="members__label">
-                <span>Name</span>
-                <input
-                  type="text"
-                  value={nameValue}
-                  onChange={(event) => setNameValue(event.target.value)}
-                  placeholder="Teammate name"
-                  disabled={isSubmitting}
-                  required
-                  autoFocus
-                />
-              </label>
-              <label className="members__label">
-                <span>Email</span>
-                <input
-                  type="email"
-                  value={emailValue}
-                  onChange={(event) => setEmailValue(event.target.value)}
-                  placeholder="teammate@example.com"
-                  disabled={isSubmitting}
-                  required
-                />
-              </label>
-              <label className="members__label">
-                <span>Role</span>
-                <select
-                  value={roleValue}
-                  onChange={(event) => setRoleValue(event.target.value as MemberRole)}
-                  disabled={isSubmitting}
-                >
-                  <option value="viewer">Viewer</option>
-                  <option value="editor">Editor</option>
-                  <option value="owner">Owner</option>
-                </select>
-              </label>
-              {localError && <p className="members__message members__message--error">{localError}</p>}
-              <div className="members-modal__actions">
-                <button
-                  type="button"
-                  className="members-modal__cancel"
-                  onClick={closeInviteModal}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="members__invite-button members-modal__submit"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Sending..." : "Send invite"}
-                </button>
+                <header className="members-modal__header">
+                  <h3 id="members-invite-title">Invite teammate</h3>
+                  <button
+                    type="button"
+                    className="members-modal__close"
+                    onClick={closeInviteModal}
+                    disabled={isSubmitting}
+                  >
+                    Close
+                  </button>
+                </header>
+                <form className="members-modal__form" onSubmit={handleSubmit}>
+                  <label className="members__label">
+                    <span>Name</span>
+                    <input
+                      type="text"
+                      value={nameValue}
+                      onChange={(event) => setNameValue(event.target.value)}
+                      placeholder="Teammate name"
+                      disabled={isSubmitting}
+                      required
+                      autoFocus
+                    />
+                  </label>
+                  <label className="members__label">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={emailValue}
+                      onChange={(event) => setEmailValue(event.target.value)}
+                      placeholder="teammate@example.com"
+                      disabled={isSubmitting}
+                      required
+                    />
+                  </label>
+                  <label className="members__label">
+                    <span>Role</span>
+                    <select
+                      value={roleValue}
+                      onChange={(event) => setRoleValue(event.target.value as MemberRole)}
+                      disabled={isSubmitting}
+                    >
+                      <option value="viewer">Viewer</option>
+                      <option value="editor">Editor</option>
+                      <option value="owner">Owner</option>
+                    </select>
+                  </label>
+                  {localError && <p className="members__message members__message--error">{localError}</p>}
+                  <div className="members-modal__actions">
+                    <button
+                      type="button"
+                      className="members-modal__cancel"
+                      onClick={closeInviteModal}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="members__invite-button members-modal__submit"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? "Sending..." : "Send invite"}
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>,
+            modalRoot,
+          )
+        : null}
     </section>
   );
 };
