@@ -4216,7 +4216,7 @@ a.calendar__post-menu-item {
 .members-modal {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4231,6 +4231,7 @@ a.calendar__post-menu-item {
 
 .members-modal__dialog {
   position: relative;
+  z-index: 1;
   background: #ffffff;
   border-radius: 20px;
   box-shadow: 0 24px 48px -20px rgba(15, 23, 42, 0.65);
