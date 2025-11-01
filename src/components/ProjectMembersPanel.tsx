@@ -28,6 +28,11 @@ const statusLabels: Record<MemberStatus, string> = {
   pending: "Pending invite",
 };
 
+type InviteFeedback = {
+  type: "success" | "muted";
+  message: string;
+};
+
 const getInitials = (name: string) => {
   const trimmed = name.trim();
   if (!trimmed) {
@@ -56,7 +61,7 @@ const ProjectMembersPanel = ({
   const [roleValue, setRoleValue] = useState<MemberRole>("viewer");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [localSuccess, setLocalSuccess] = useState<string | null>(null);
+  const [panelFeedback, setPanelFeedback] = useState<InviteFeedback | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   const normalizedCurrentEmail = (currentUserEmail ?? "").toLowerCase();
@@ -93,17 +98,15 @@ const ProjectMembersPanel = ({
 
   const openInviteModal = () => {
     setLocalError(null);
-    setLocalSuccess(null);
     setIsInviteModalOpen(true);
   };
 
-  const closeInviteModal = () => {
-    if (isSubmitting) {
+  const closeInviteModal = (force = false) => {
+    if (isSubmitting && !force) {
       return;
     }
     setIsInviteModalOpen(false);
     setLocalError(null);
-    setLocalSuccess(null);
     setNameValue("");
     setEmailValue("");
     setRoleValue("viewer");
@@ -112,7 +115,7 @@ const ProjectMembersPanel = ({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLocalError(null);
-    setLocalSuccess(null);
+    setPanelFeedback(null);
 
     const trimmedName = nameValue.trim();
     const trimmedEmail = emailValue.trim();
@@ -128,6 +131,8 @@ const ProjectMembersPanel = ({
     }
 
     setIsSubmitting(true);
+    let shouldCloseModal = false;
+
     try {
       const result = await onInvite({
         projectId,
@@ -135,16 +140,19 @@ const ProjectMembersPanel = ({
         role: roleValue,
         name: trimmedName,
       });
-      if (result) {
-        setLocalSuccess(`Invite sent to ${trimmedEmail}.`);
-        setNameValue("");
-        setEmailValue("");
-        setRoleValue("viewer");
-      }
+
+      const message = result?.emailWarning ?? `Invite sent to ${trimmedEmail}.`;
+      const type: InviteFeedback["type"] = result?.emailWarning ? "muted" : "success";
+
+      setPanelFeedback({ type, message });
+      shouldCloseModal = true;
     } catch (err: any) {
       setLocalError(err?.message ?? "Failed to send invite.");
     } finally {
       setIsSubmitting(false);
+      if (shouldCloseModal) {
+        closeInviteModal(true);
+      }
     }
   };
 
@@ -165,53 +173,11 @@ const ProjectMembersPanel = ({
           </button>
         )}
       </div>
-      {canInvite && (
-        <form className="members__form" onSubmit={handleSubmit}>
-          <label className="members__label">
-            <span>Name</span>
-            <input
-              type="text"
-              value={nameValue}
-              onChange={(event) => setNameValue(event.target.value)}
-              placeholder="Teammate name"
-              disabled={isSubmitting}
-              required
-            />
-          </label>
-          <label className="members__label">
-            <span>Email</span>
-            <input
-              type="email"
-              value={emailValue}
-              onChange={(event) => setEmailValue(event.target.value)}
-              placeholder="teammate@example.com"
-              disabled={isSubmitting}
-              required
-            />
-          </label>
-          <div className="members__label">
-            <span>Role</span>
-            <select
-              value={roleValue}
-              onChange={(event) => setRoleValue(event.target.value as MemberRole)}
-              disabled={isSubmitting}
-            >
-              <option value="viewer">Viewer</option>
-              <option value="editor">Editor</option>
-              <option value="owner">Owner</option>
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="members__invite-button"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Sending..." : "Send invite"}
-          </button>
-        </form>
+      {panelFeedback && (
+        <p className={`members__message members__message--${panelFeedback.type}`}>
+          {panelFeedback.message}
+        </p>
       )}
-      {localError && <p className="members__message members__message--error">{localError}</p>}
-      {localSuccess && <p className="members__message members__message--success">{localSuccess}</p>}
       {sortedMembers.length === 0 ? (
         <div className="members__empty">No members yet. Send an invite to get started.</div>
       ) : (
@@ -334,7 +300,6 @@ const ProjectMembersPanel = ({
                 </select>
               </label>
               {localError && <p className="members__message members__message--error">{localError}</p>}
-              {localSuccess && <p className="members__message members__message--success">{localSuccess}</p>}
               <div className="members-modal__actions">
                 <button
                   type="button"
