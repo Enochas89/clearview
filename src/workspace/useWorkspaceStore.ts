@@ -300,10 +300,11 @@ const createId = (_prefix: string) => {
 const fetchProjectsAndTasks = async (session: Session) => {
   const memberFilters = [`user_id.eq.${session.user.id}`];
   if (session.user.email) {
-    const normalizedEmail = session.user.email.trim().toLowerCase();
-    memberFilters.push(`email.eq.${session.user.email}`);
-    if (normalizedEmail !== session.user.email) {
-      memberFilters.push(`email.eq.${normalizedEmail}`);
+    const trimmedEmail = session.user.email.trim();
+    const normalizedEmail = trimmedEmail.toLowerCase();
+    memberFilters.push(`email.ilike.${normalizedEmail}`);
+    if (normalizedEmail !== trimmedEmail) {
+      memberFilters.push(`email.eq.${trimmedEmail}`);
     }
   }
 
