@@ -302,7 +302,7 @@ const fetchProjectsAndTasks = async (session: Session) => {
   if (session.user.email) {
     const trimmedEmail = session.user.email.trim();
     const normalizedEmail = trimmedEmail.toLowerCase();
-    memberFilters.push(`email.ilike.${normalizedEmail}`);
+    memberFilters.push(`email.eq.${normalizedEmail}`);
     if (normalizedEmail !== trimmedEmail) {
       memberFilters.push(`email.eq.${trimmedEmail}`);
     }
