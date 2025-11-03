@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useNotifications } from "../workspace/NotificationContext";
 import {
@@ -85,6 +85,32 @@ const CHANGE_ORDER_GUIDANCE_POINTS = [
   "Each recipient can approve, deny, or request more info from their email.",
   "Attachments stay organized on the project timeline.",
 ];
+
+type ChangeOrdersFilter = "all" | "awaiting" | "needs_info" | "signed_off" | "denied";
+
+type TimelineEntry = {
+  id: string;
+  title: string;
+  description?: string;
+  timestamp?: string | null;
+  tone: "pending" | "success" | "danger" | "info";
+};
+
+const STATUS_FILTER_OPTIONS: Array<{ label: string; value: ChangeOrdersFilter }> = [
+  { label: "All", value: "all" },
+  { label: "Awaiting decision", value: "awaiting" },
+  { label: "Needs more info", value: "needs_info" },
+  { label: "Signed off", value: "signed_off" },
+  { label: "Denied", value: "denied" },
+];
+
+const statusPillClass: Record<ChangeOrderStatus, string> = {
+  pending: "change-orders__status-pill change-orders__status-pill--pending",
+  approved: "change-orders__status-pill change-orders__status-pill--approved",
+  approved_with_conditions: "change-orders__status-pill change-orders__status-pill--conditions",
+  denied: "change-orders__status-pill change-orders__status-pill--denied",
+  needs_info: "change-orders__status-pill change-orders__status-pill--info",
+};
 
 const generateId = (prefix: string) => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -258,13 +284,30 @@ const formatRelativeTime = (isoDate: string | null | undefined) => {
   return rtf.format(months, "month");
 };
 
+const formatDateDisplay = (isoDate?: string | null) => {
+  if (!isoDate) {
+    return "";
+  }
+  const value = new Date(isoDate);
+  if (Number.isNaN(value.getTime())) {
+    return "";
+  }
+  return value.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 
 const ChangeOrderComposer = ({
   project,
   onCreate,
+  onClose,
 }: {
   project: Project | null;
   onCreate: ChangeOrdersProps["onCreate"];
+  onClose?: () => void;
 }) => {
   const { push } = useNotifications();
   const {
@@ -346,6 +389,8 @@ const ChangeOrderComposer = ({
       );
       reset(createEmptyForm());
       clearErrors();
+      push("success", "Change order sent.");
+      onClose?.();
     } catch (error: any) {
       setError("root", {
         type: "manual",
@@ -596,7 +641,7 @@ const ChangeOrderComposer = ({
   );
 };
 
-const ChangeOrders = ({
+﻿const ChangeOrders = ({
   project,
   orders,
   onCreate,
@@ -605,75 +650,180 @@ const ChangeOrders = ({
   isLoading = false,
 }: ChangeOrdersProps) => {
   const { push } = useNotifications();
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ChangeOrdersFilter>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [isResponseOpen, setIsResponseOpen] = useState(false);
-  const [responseTarget, setResponseTarget] = useState<{
-    id: string;
-    status: ChangeOrderStatus;
-  } | null>(null);
+  const [responseTarget, setResponseTarget] = useState<{ id: string; status: ChangeOrderStatus } | null>(null);
   const [responseMessage, setResponseMessage] = useState("");
   const [responseError, setResponseError] = useState<string | null>(null);
   const [isActionSubmitting, setIsActionSubmitting] = useState(false);
-
-  const closeResponseModal = () => {
-    setIsResponseOpen(false);
-    setResponseTarget(null);
-    setResponseMessage("");
-    setResponseError(null);
-    setIsActionSubmitting(false);
-  };
-
-  useEffect(() => {
-    if (!openMenuId) {
-      return;
-    }
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target?.closest(`[data-action-menu="${openMenuId}"]`)) {
-        setOpenMenuId(null);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenMenuId(null);
-      }
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [openMenuId]);
 
   const sortedOrders = useMemo(
     () => [...orders].sort((a, b) => (a.sentAt > b.sentAt ? -1 : 1)),
     [orders],
   );
 
-  const handleStatusChange = async (
-    orderId: string,
-    status: ChangeOrderStatus,
-    message?: string | null,
-  ) => {
-    try {
-      setIsActionSubmitting(true);
-      await Promise.resolve(
-        onChangeStatus(orderId, status, { responseMessage: message ?? null }),
-      );
-      setOpenMenuId(null);
-      closeResponseModal();
-    } catch (err: any) {
-      console.error("Error updating change order status:", err);
-      const messageText = err?.message ?? "Failed to update status.";
-      setResponseError(messageText);
-      push("error", messageText);
-    } finally {
-      setIsActionSubmitting(false);
+  const filteredOrders = useMemo(() => {
+    let result = sortedOrders;
+    if (filter !== "all") {
+      result = result.filter((order) => {
+        switch (filter) {
+          case "awaiting":
+            return order.status === "pending";
+          case "needs_info":
+            return order.status === "needs_info";
+          case "signed_off":
+            return order.status === "approved" || order.status === "approved_with_conditions";
+          case "denied":
+            return order.status === "denied";
+          default:
+            return true;
+        }
+      });
     }
-  };
+    const query = searchTerm.trim().toLowerCase();
+    if (query.length > 0) {
+      result = result.filter((order) => {
+        const haystacks: string[] = [];
+        if (order.subject) haystacks.push(order.subject);
+        if (order.description) haystacks.push(order.description);
+        if (order.recipientName) haystacks.push(order.recipientName);
+        if (order.recipientEmail) haystacks.push(order.recipientEmail);
+        if (order.sentAt) haystacks.push(formatDateDisplay(order.sentAt));
+        order.recipients.forEach((recipient) => {
+          if (recipient.name) haystacks.push(recipient.name);
+          if (recipient.email) haystacks.push(recipient.email);
+        });
+        return haystacks.some((value) => value.toLowerCase().includes(query));
+      });
+    }
+    return result;
+  }, [sortedOrders, filter, searchTerm]);
 
-  const confirmDelete = async (orderId: string) => {
+  useEffect(() => {
+    if (filteredOrders.length === 0) {
+      setSelectedOrderId(null);
+      return;
+    }
+    setSelectedOrderId((current) =>
+      current && filteredOrders.some((order) => order.id === current)
+        ? current
+        : filteredOrders[0].id,
+    );
+  }, [filteredOrders]);
+
+  const selectedOrder = useMemo(() => {
+    if (!selectedOrderId) {
+      return filteredOrders[0] ?? null;
+    }
+    return (
+      filteredOrders.find((order) => order.id === selectedOrderId) ??
+      sortedOrders.find((order) => order.id === selectedOrderId) ??
+      filteredOrders[0] ??
+      null
+    );
+  }, [filteredOrders, sortedOrders, selectedOrderId]);
+
+  const stats = useMemo(() => {
+    const counts: Record<ChangeOrderStatus, number> = {
+      pending: 0,
+      approved: 0,
+      approved_with_conditions: 0,
+      denied: 0,
+      needs_info: 0,
+    };
+    let totalValue = 0;
+    let awaitingValue = 0;
+    let approvedValue = 0;
+
+    sortedOrders.forEach((order) => {
+      counts[order.status] += 1;
+      const orderValue = calculateTotalCost(order.lineItems);
+      totalValue += orderValue;
+      if (order.status === "pending" || order.status === "needs_info") {
+        awaitingValue += orderValue;
+      }
+      if (order.status === "approved" || order.status === "approved_with_conditions") {
+        approvedValue += orderValue;
+      }
+    });
+
+    const nextDecision =
+      sortedOrders
+        .filter((order) => order.status === "pending" || order.status === "needs_info")
+        .sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime())[0] ?? null;
+
+    return {
+      counts,
+      totalValue,
+      awaitingValue,
+      approvedValue,
+      total: sortedOrders.length,
+      awaiting: counts.pending + counts.needs_info,
+      signedOff: counts.approved + counts.approved_with_conditions,
+      nextDecision,
+    };
+  }, [sortedOrders]);
+
+  const closeResponseModal = useCallback(() => {
+    setIsResponseOpen(false);
+    setResponseTarget(null);
+    setResponseMessage("");
+    setResponseError(null);
+    setIsActionSubmitting(false);
+  }, []);
+
+  const handleStatusUpdate = useCallback(
+    async (orderId: string, status: ChangeOrderStatus, message?: string | null) => {
+      try {
+        setIsActionSubmitting(true);
+        await Promise.resolve(
+          onChangeStatus(orderId, status, { responseMessage: message ?? null }),
+        );
+        push("success", "Change order updated.");
+        closeResponseModal();
+      } catch (err: any) {
+        console.error("Error updating change order status:", err);
+        const messageText = err?.message ?? "Failed to update status.";
+        setResponseError(messageText);
+        push("error", messageText);
+      } finally {
+        setIsActionSubmitting(false);
+      }
+    },
+    [onChangeStatus, closeResponseModal, push],
+  );
+
+  const handleApprove = useCallback(() => {
+    if (!selectedOrder) {
+      return;
+    }
+    void handleStatusUpdate(selectedOrder.id, "approved");
+  }, [selectedOrder, handleStatusUpdate]);
+
+  const handleDeny = useCallback(() => {
+    if (!selectedOrder) {
+      return;
+    }
+    void handleStatusUpdate(selectedOrder.id, "denied");
+  }, [selectedOrder, handleStatusUpdate]);
+
+  const handleRequestInfo = useCallback(() => {
+    if (!selectedOrder) {
+      return;
+    }
+    setResponseTarget({ id: selectedOrder.id, status: "needs_info" });
+    setResponseMessage("");
+    setResponseError(null);
+    setIsResponseOpen(true);
+  }, [selectedOrder]);
+
+  const handleDelete = useCallback(async () => {
+    if (!selectedOrder) {
+      return;
+    }
     const shouldDelete =
       typeof window === "undefined"
         ? true
@@ -682,157 +832,430 @@ const ChangeOrders = ({
       return;
     }
     try {
-      await Promise.resolve(onDelete(orderId));
-      setOpenMenuId(null);
+      await Promise.resolve(onDelete(selectedOrder.id));
+      push("success", "Change order removed.");
+      setSelectedOrderId(null);
     } catch (err) {
       console.error("Error deleting change order:", err);
       push("error", err instanceof Error ? err.message : "Failed to delete change order.");
     }
+  }, [selectedOrder, onDelete, push]);
+
+  const openComposer = useCallback(() => setIsComposerOpen(true), []);
+  const closeComposer = useCallback(() => setIsComposerOpen(false), []);
+
+  const handleFilterChange = (value: ChangeOrdersFilter) => {
+    setFilter(value);
   };
 
-  const triggerResponseModal = (orderId: string, status: ChangeOrderStatus) => {
-    setResponseTarget({ id: orderId, status });
-    setResponseMessage("");
-    setResponseError(null);
-    setIsResponseOpen(true);
+  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value);
   };
 
+  const selectedOrderValue = selectedOrder ? calculateTotalCost(selectedOrder.lineItems) : 0;
+  const selectedOrderCode = useMemo(() => {
+    if (!selectedOrder) {
+      return "";
+    }
+    const filteredIndex = filteredOrders.findIndex((order) => order.id === selectedOrder.id);
+    const fallbackIndex =
+      filteredIndex >= 0
+        ? filteredIndex
+        : sortedOrders.findIndex((order) => order.id === selectedOrder.id);
+    if (fallbackIndex < 0) {
+      return "";
+    }
+    return `CO-${String(fallbackIndex + 1).padStart(3, "0")}`;
+  }, [filteredOrders, selectedOrder, sortedOrders]);
 
+  const filterCounts = useMemo(
+    (): Record<ChangeOrdersFilter, number> => ({
+      all: stats.total,
+      awaiting: stats.awaiting,
+      needs_info: stats.counts.needs_info,
+      signed_off: stats.signedOff,
+      denied: stats.counts.denied,
+    }),
+    [stats],
+  );
+
+  const timelineEntries = useMemo<TimelineEntry[]>(() => {
+    if (!selectedOrder) {
+      return [];
+    }
+
+    const events: TimelineEntry[] = [
+      {
+        id: `${selectedOrder.id}-submitted`,
+        title: "Submitted for approval",
+        description: selectedOrder.createdByName
+          ? `Sent by ${selectedOrder.createdByName}`
+          : undefined,
+        timestamp: selectedOrder.sentAt,
+        tone: "info",
+      },
+    ];
+
+    selectedOrder.recipients.forEach((recipient) => {
+      const recipientLabel = recipient.name || recipient.email || "Recipient";
+      let tone: TimelineEntry["tone"] = "pending";
+      if (recipient.status === "approved" || recipient.status === "approved_with_conditions") {
+        tone = "success";
+      } else if (recipient.status === "denied") {
+        tone = "danger";
+      } else if (recipient.status === "needs_info") {
+        tone = "info";
+      }
+
+      events.push({
+        id: `${selectedOrder.id}-recipient-${recipient.id}`,
+        title:
+          recipient.status === "pending"
+            ? `${recipientLabel} awaiting review`
+            : `${recipientLabel} ${recipientStatusLabel[recipient.status]}`,
+        description: recipient.conditionNote || undefined,
+        timestamp: recipient.respondedAt ?? null,
+        tone,
+      });
+    });
+
+    if (selectedOrder.responseAt) {
+      events.push({
+        id: `${selectedOrder.id}-response`,
+        title: "Owner response recorded",
+        description: selectedOrder.responseMessage || undefined,
+        timestamp: selectedOrder.responseAt,
+        tone: selectedOrder.status === "denied" ? "danger" : "success",
+      });
+    }
+
+    events.push({
+      id: `${selectedOrder.id}-updated`,
+      title: "Log updated",
+      description: selectedOrder.updatedAt
+        ? `Updated ${formatRelativeTime(selectedOrder.updatedAt)}`
+        : undefined,
+      timestamp: selectedOrder.updatedAt,
+      tone: "info",
+    });
+
+    return events.sort((a, b) => {
+      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [selectedOrder]);
 
   return (
     <section className="change-orders">
-      <header className="change-orders__header">
-        <div className="change-orders__title">
-          <span className="change-orders__badge" aria-hidden="true">*</span>
+      <header className="change-orders__hero">
+        <div className="change-orders__hero-top">
+          <div className="change-orders__hero-title">
+            <span>Change orders</span>
+            <h1>Keep every scope change visible</h1>
+            <p>
+              Coordinate approvals, capture decisions, and keep stakeholders aligned before the work begins.
+            </p>
+          </div>
+          <div className="change-orders__hero-actions">
+            <button
+              type="button"
+              className="change-orders__button change-orders__button--primary"
+              onClick={openComposer}
+              disabled={!project}
+            >
+              New change order
+            </button>
+          </div>
+        </div>
+        <div className="change-orders__hero-meta">
           <div>
-            <h2>Change Orders</h2>
-            <p>Send, track, and approve change requests for this project.</p>
+            <span>Active project</span>
+            <strong>
+              {project
+                ? [project.name, project.referenceId].filter(Boolean).join(" • ")
+                : "No project selected"}
+            </strong>
+            {project?.dueDate && <small>Due {formatDateDisplay(project.dueDate)}</small>}
+          </div>
+          <div>
+            <span>Awaiting decision</span>
+            <strong>{stats.awaiting}</strong>
+            <small>{currencyFormatter.format(stats.awaitingValue)}</small>
+          </div>
+          <div>
+            <span>Signed off</span>
+            <strong>{stats.signedOff}</strong>
+            <small>{currencyFormatter.format(stats.approvedValue)}</small>
           </div>
         </div>
       </header>
-      {project && (
-        <section className="change-orders__guidance" aria-label="Change order delivery details">
-          <p>{CHANGE_ORDER_GUIDANCE_MESSAGE}</p>
-          <ul>
-            {CHANGE_ORDER_GUIDANCE_POINTS.map((point) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <div className="change-orders__context">
-        {project ? (
-          <span>
-            Project: <strong>{project.name}</strong>
-          </span>
-        ) : (
-          <span>Select a project to manage change orders.</span>
-        )}
+
+      <div className="change-orders__summary">
+        <div className="change-orders__summary-card">
+          <span>Total requests</span>
+          <strong>{stats.total}</strong>
+        </div>
+        <div className="change-orders__summary-card">
+          <span>Awaiting decision value</span>
+          <strong>{currencyFormatter.format(stats.awaitingValue)}</strong>
+        </div>
+        <div className="change-orders__summary-card">
+          <span>Signed off value</span>
+          <strong>{currencyFormatter.format(stats.approvedValue)}</strong>
+        </div>
+        <div className="change-orders__summary-card">
+          <span>Total value</span>
+          <strong>{currencyFormatter.format(stats.totalValue)}</strong>
+        </div>
+        <div className="change-orders__summary-card change-orders__summary-card--wide">
+          <span>Next decision</span>
+          {stats.nextDecision ? (
+            <>
+              <strong>{stats.nextDecision.subject || "Untitled change order"}</strong>
+              <small>
+                {formatDateDisplay(stats.nextDecision.sentAt)} · {formatRelativeTime(stats.nextDecision.sentAt)}
+              </small>
+            </>
+          ) : (
+            <strong>No pending approvals</strong>
+          )}
+        </div>
       </div>
 
-      {project && <ChangeOrderComposer project={project} onCreate={onCreate} />}
+      <div className="change-orders__notice">
+        <strong>Heads up:</strong>
+        <span>{CHANGE_ORDER_GUIDANCE_MESSAGE}</span>
+      </div>
 
-      <div className="change-orders__results">
-        {project ? (
-          isLoading ? (
-            <p className="change-orders__empty">Loading change orders...</p>
-          ) : sortedOrders.length === 0 ? (
-            <p className="change-orders__empty">No change orders yet. Create one to get started.</p>
-          ) : (
-            <ul className="change-orders__list">
-              {sortedOrders.map((order) => (
-                <li key={order.id} className="change-order-card">
-              <div className="change-order-card__header">
-                <div>
-                  <h3>{order.subject || "Untitled change order"}</h3>
-                  <div className="change-order-card__meta">
-                    <span>{order.recipients.length} recipient{order.recipients.length === 1 ? "" : "s"}</span>
-                    {order.sentAt && (
-                      <span title={order.sentAt}>
-                        {formatRelativeTime(order.sentAt)
-                          ? `Created ${formatRelativeTime(order.sentAt)}`
-                          : ""}
-                      </span>
-                    )}
-                  </div>
-                  {order.recipientEmail && (
-                    <span className="change-order-card__meta-secondary">
-                      Primary contact:{" "}
-                      {order.recipientName
+      <div className="change-orders__filters">
+        <label className="change-orders__search">
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={handleSearchChange}
+            placeholder="Search change orders"
+          />
+        </label>
+        <div className="change-orders__chips" role="tablist" aria-label="Filter change orders">
+          {STATUS_FILTER_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`change-orders__chip${filter === option.value ? " is-active" : ""}`}
+              aria-pressed={filter === option.value}
+              onClick={() => handleFilterChange(option.value)}
+            >
+              <span>{option.label}</span>
+              <span className="change-orders__chip-count">{filterCounts[option.value]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="change-orders__layout">
+        <div className="change-orders__table-card" role="region" aria-live="polite">
+          <div className="change-orders__table-headline">
+            <h2>Log</h2>
+            <span>
+              {filteredOrders.length} change order{filteredOrders.length === 1 ? "" : "s"} shown
+            </span>
+          </div>
+          <div className="change-orders__table-wrapper">
+            <table className="change-orders__table">
+              <thead>
+                <tr className="change-orders__table-header">
+                  <th scope="col">Change order</th>
+                  <th scope="col">Contact</th>
+                  <th scope="col">Sent</th>
+                  <th scope="col">Updated</th>
+                  <th scope="col">Value</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!project ? (
+                  <tr>
+                    <td colSpan={6} className="change-orders__table-empty">
+                      Select a project to manage change orders.
+                    </td>
+                  </tr>
+                ) : isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="change-orders__table-empty">Loading change orders...</td>
+                  </tr>
+                ) : filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="change-orders__table-empty">
+                      No change orders match your filters.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOrders.map((order, index) => {
+                    const total = calculateTotalCost(order.lineItems);
+                    const isSelected = selectedOrder?.id === order.id;
+                    const contact =
+                      order.recipientName && order.recipientEmail
                         ? `${order.recipientName} (${order.recipientEmail})`
-                        : order.recipientEmail}
-                    </span>
-                  )}
-                </div>
-                <div
-                  className="calendar__post-menu-wrapper"
-                  data-action-menu={`change:${order.id}`}
-                >
-                  <button
-                    type="button"
-                    className="calendar__post-menu-toggle"
-                    aria-haspopup="true"
-                    aria-expanded={openMenuId === `change:${order.id}`}
-                    aria-label="Show change order actions"
-                    onClick={() =>
-                      setOpenMenuId((current) =>
-                        current === `change:${order.id}` ? null : `change:${order.id}`,
-                      )
-                    }
-                  >
-                    &#8230;
-                  </button>
-                  {openMenuId === `change:${order.id}` && (
-                    <div className="calendar__post-menu" role="menu">
-                      <button
-                        type="button"
-                        className="calendar__post-menu-item calendar__post-menu-item--danger"
-                        role="menuitem"
-                        onClick={() => confirmDelete(order.id)}
+                        : order.recipientName || order.recipientEmail || "--";
+                    const sentDate = formatDateDisplay(order.sentAt) || "--";
+                    const sentRelative = order.sentAt ? formatRelativeTime(order.sentAt) : "";
+                    const updatedDate = formatDateDisplay(order.updatedAt) || "--";
+                    const updatedRelative = order.updatedAt ? formatRelativeTime(order.updatedAt) : "";
+                    const displayCode = `CO-${String(index + 1).padStart(3, "0")}`;
+                    return (
+                      <tr
+                        key={order.id}
+                        className={`change-orders__row${isSelected ? " is-selected" : ""}`}
+                        onClick={() => setSelectedOrderId(order.id)}
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedOrderId(order.id);
+                          }
+                        }}
+                        aria-selected={isSelected}
                       >
-                        Delete
-                      </button>
-                    </div>
+                        <td>
+                          <div className="change-orders__row-subject">
+                            <span className="change-orders__row-code">{displayCode}</span>
+                            <strong>{order.subject || "Untitled change order"}</strong>
+                            {order.description && <span>{order.description}</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="change-orders__row-contact">
+                            <strong>{contact}</strong>
+                            <span>
+                              {order.recipients.length} recipient{order.recipients.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="change-orders__row-date">
+                            <strong>{sentDate}</strong>
+                            {sentRelative && <span>{sentRelative}</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="change-orders__row-date">
+                            <strong>{updatedDate}</strong>
+                            {updatedRelative && <span>{updatedRelative}</span>}
+                          </div>
+                        </td>
+                        <td className="change-orders__row-value">
+                          {currencyFormatter.format(total)}
+                        </td>
+                        <td className="change-orders__row-status">
+                          <span className={statusPillClass[order.status]}>{statusLabel[order.status]}</span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside className="change-orders__detail" role="region" aria-live="polite">
+          {!project ? (
+            <div className="change-orders__detail-empty">Select a project to see change order details.</div>
+          ) : !selectedOrder ? (
+            filteredOrders.length === 0 ? (
+              <div className="change-orders__detail-empty">No change orders to display.</div>
+            ) : (
+              <div className="change-orders__detail-empty">Select a change order to see its details.</div>
+            )
+          ) : (
+            <>
+              <header className="change-orders__detail-header">
+                <div>
+                  {selectedOrderCode && (
+                    <span className="change-orders__detail-code">{selectedOrderCode}</span>
                   )}
-                </div>
-              </div>
-
-              {order.description && (
-                <p className="change-order-card__description">{order.description}</p>
-              )}
-
-              {order.lineItems.length > 0 && (
-                <div className="change-order-card__line-items">
-                  <div className="change-order-card__line-items-head">
-                    <span>Item</span>
-                    <span>Description</span>
-                    <span>Impact (days)</span>
-                    <span>Cost</span>
-                  </div>
-                  {order.lineItems.map((item) => (
-                    <div key={item.id} className="change-order-card__line-item-row">
-                      <span>{item.title || "-"}</span>
-                      <span>{item.description || "-"}</span>
-                      <span>{item.impactDays ?? 0}</span>
-                      <span>{currencyFormatter.format(Number(item.cost) || 0)}</span>
+                  <h2>{selectedOrder.subject || "Untitled change order"}</h2>
+                  <div className="change-orders__detail-meta">
+                    <div className="change-orders__detail-meta-card">
+                      <span>Primary contact</span>
+                      <strong>
+                        {selectedOrder.recipientName
+                          ? `${selectedOrder.recipientName} (${selectedOrder.recipientEmail})`
+                          : selectedOrder.recipientEmail || "--"}
+                      </strong>
                     </div>
-                  ))}
-                  <div className="change-order-card__line-items-total">
-                    <span>Total</span>
-                    <span>{currencyFormatter.format(calculateTotalCost(order.lineItems))}</span>
+                    <div className="change-orders__detail-meta-card">
+                      <span>Sent</span>
+                      <strong>{formatDateDisplay(selectedOrder.sentAt) || "--"}</strong>
+                      {selectedOrder.sentAt && (
+                        <small>{formatRelativeTime(selectedOrder.sentAt)}</small>
+                      )}
+                    </div>
+                    <div className="change-orders__detail-meta-card">
+                      <span>Last updated</span>
+                      <strong>{formatDateDisplay(selectedOrder.updatedAt) || "--"}</strong>
+                      {selectedOrder.updatedAt && (
+                        <small>{formatRelativeTime(selectedOrder.updatedAt)}</small>
+                      )}
+                    </div>
+                    <div className="change-orders__detail-meta-card">
+                      <span>Total value</span>
+                      <strong>{currencyFormatter.format(selectedOrderValue)}</strong>
+                    </div>
                   </div>
                 </div>
+                <span className={`change-order-card__badge${statusBadgeClass[selectedOrder.status]}`}>
+                  {statusLabel[selectedOrder.status]}
+                </span>
+              </header>
+
+              {selectedOrder.description && (
+                <section className="change-orders__detail-section">
+                  <h3>Scope summary</h3>
+                  <p className="change-orders__detail-note">{selectedOrder.description}</p>
+                </section>
               )}
 
-              {order.recipients.length > 0 && (
-                <div className="change-order-card__recipients">
-                  <div className="change-order-card__recipients-head">
-                    <span>Approvers</span>
+              <section className="change-orders__detail-section">
+                <h3>Line items</h3>
+                {selectedOrder.lineItems.length === 0 ? (
+                  <p className="change-orders__detail-note">No line items added.</p>
+                ) : (
+                  <div className="change-orders__line-items-table">
+                    <div className="change-orders__line-items-row change-orders__line-items-row--head">
+                      <span>Item</span>
+                      <span>Description</span>
+                      <span>Impact (days)</span>
+                      <span>Cost</span>
+                    </div>
+                    {selectedOrder.lineItems.map((item) => (
+                      <div key={item.id} className="change-orders__line-items-row">
+                        <span>{item.title || "-"}</span>
+                        <span>{item.description || "-"}</span>
+                        <span>{item.impactDays ?? 0}</span>
+                        <span>{currencyFormatter.format(Number(item.cost) || 0)}</span>
+                      </div>
+                    ))}
+                    <div className="change-orders__line-items-row change-orders__line-items-row--total">
+                      <span>Total</span>
+                      <span />
+                      <span />
+                      <span>{currencyFormatter.format(selectedOrderValue)}</span>
+                    </div>
                   </div>
-                  <div className="change-order-card__recipient-list">
-                    {order.recipients.map((recipient) => (
-                      <div key={recipient.id} className="change-order-card__recipient-row">
-                        <div className="change-order-card__recipient-details">
+                )}
+              </section>
+
+              <section className="change-orders__detail-section">
+                <h3>Recipients</h3>
+                {selectedOrder.recipients.length === 0 ? (
+                  <p className="change-orders__detail-note">No additional recipients were added.</p>
+                ) : (
+                  <div className="change-orders__recipients-list">
+                    {selectedOrder.recipients.map((recipient) => (
+                      <div key={recipient.id} className="change-orders__recipient">
+                        <div>
                           <strong>{recipient.name || recipient.email}</strong>
                           <span>{recipient.email}</span>
                         </div>
@@ -840,97 +1263,134 @@ const ChangeOrders = ({
                           {recipientStatusLabel[recipient.status]}
                         </span>
                         {recipient.conditionNote && (
-                          <span className="change-order-card__recipient-note">
+                          <p className="change-orders__recipient-note">
                             "{recipient.conditionNote}"
-                          </span>
+                          </p>
                         )}
                         {recipient.respondedAt && (
-                          <span className="change-order-card__recipient-time">
+                          <p className="change-orders__recipient-time">
                             {formatRelativeTime(recipient.respondedAt)}
-                          </span>
+                          </p>
                         )}
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </section>
 
-              <div className="change-order-card__status-row">
-                <span className={`change-order-card__badge${statusBadgeClass[order.status]}`}>
-                  {statusLabel[order.status]}
-                </span>
-                <div className="change-order-card__timeline">
-                  {order.status !== "pending" && order.responseAt ? (
-                    <span title={order.responseAt}>
-                      {statusLabel[order.status]}{" "}
-                      {formatRelativeTime(order.responseAt)
-                        ? formatRelativeTime(order.responseAt)
-                        : ""}
-                    </span>
-                  ) : (
-                    <span>Waiting on recipient</span>
-                  )}
-                  {order.responseMessage && (
-                    <span className="change-order-card__note">
-                      "{order.responseMessage}"
-                    </span>
-                  )}
-                </div>
-              </div>
+              <section className="change-orders__detail-section">
+                <h3>Timeline</h3>
+                {timelineEntries.length === 0 ? (
+                  <p className="change-orders__detail-note">
+                    Timeline entries will populate after responses arrive.
+                  </p>
+                ) : (
+                  <ul className="change-orders__timeline">
+                    {timelineEntries.map((entry) => {
+                      const displayDate = entry.timestamp ? formatDateDisplay(entry.timestamp) : "";
+                      const relative = entry.timestamp ? formatRelativeTime(entry.timestamp) : "";
+                      return (
+                        <li
+                          key={entry.id}
+                          className={`change-orders__timeline-item change-orders__timeline-item--${entry.tone}`}
+                        >
+                          <span className="change-orders__timeline-marker" aria-hidden="true" />
+                          <div className="change-orders__timeline-content">
+                            <strong>{entry.title}</strong>
+                            {entry.description && <p>{entry.description}</p>}
+                            {(displayDate || relative) && (
+                              <span className="change-orders__timeline-time">
+                                {displayDate}
+                                {relative ? ` | ${relative}` : ""}
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
 
-              <div className="change-order-card__actions">
-                {order.status === "pending" && (
+              <div className="change-orders__detail-actions">
+                {selectedOrder.status === "pending" && (
                   <>
                     <button
                       type="button"
                       className="change-order-card__action"
-                      onClick={() => handleStatusChange(order.id, "approved")}
+                      onClick={handleApprove}
+                      disabled={isActionSubmitting}
                     >
                       Approve
                     </button>
                     <button
                       type="button"
                       className="change-order-card__action change-order-card__action--danger"
-                      onClick={() => handleStatusChange(order.id, "denied")}
+                      onClick={handleDeny}
+                      disabled={isActionSubmitting}
                     >
                       Deny
                     </button>
                     <button
                       type="button"
                       className="change-order-card__action change-order-card__action--neutral"
-                      onClick={() => triggerResponseModal(order.id, "needs_info")}
+                      onClick={handleRequestInfo}
+                      disabled={isActionSubmitting}
                     >
                       Request info
                     </button>
                   </>
                 )}
-                {order.status === "needs_info" && (
+                {selectedOrder.status === "needs_info" && (
                   <>
                     <button
                       type="button"
                       className="change-order-card__action"
-                      onClick={() => handleStatusChange(order.id, "approved")}
+                      onClick={handleApprove}
+                      disabled={isActionSubmitting}
                     >
                       Approve
                     </button>
                     <button
                       type="button"
                       className="change-order-card__action change-order-card__action--danger"
-                      onClick={() => handleStatusChange(order.id, "denied")}
+                      onClick={handleDeny}
+                      disabled={isActionSubmitting}
                     >
                       Deny
                     </button>
                   </>
                 )}
+                <button
+                  type="button"
+                  className="change-order-card__action change-order-card__action--danger"
+                  onClick={handleDelete}
+                  disabled={isActionSubmitting}
+                >
+                  Delete
+                </button>
               </div>
-            </li>
-          ))}
-            </ul>
-          )
-        ) : (
-          <p className="change-orders__empty">Select a project to manage change orders.</p>
-        )}
+            </>
+          )}
+        </aside>
       </div>
+
+      {isComposerOpen && project && (
+        <div className="change-orders__composer-overlay" role="dialog" aria-modal="true">
+          <div className="change-orders__composer-backdrop" onClick={closeComposer} />
+          <div className="change-orders__composer-panel">
+            <button
+              type="button"
+              className="change-orders__composer-close"
+              aria-label="Close change order composer"
+              onClick={closeComposer}
+            >
+              Close
+            </button>
+            <ChangeOrderComposer project={project} onCreate={onCreate} onClose={closeComposer} />
+          </div>
+        </div>
+      )}
 
       {isResponseOpen && responseTarget && (
         <div className="modal">
@@ -940,7 +1400,7 @@ const ChangeOrders = ({
               className="modal__form"
               onSubmit={(event) => {
                 event.preventDefault();
-                handleStatusChange(responseTarget.id, responseTarget.status, responseMessage);
+                handleStatusUpdate(responseTarget.id, responseTarget.status, responseMessage);
               }}
             >
               <header className="modal__header">
@@ -951,7 +1411,7 @@ const ChangeOrders = ({
                   onClick={closeResponseModal}
                   aria-label="Close request info form"
                 >
-                  X
+                  Close
                 </button>
               </header>
               <label>
@@ -982,3 +1442,8 @@ const ChangeOrders = ({
 };
 
 export default ChangeOrders;
+
+
+
+
+

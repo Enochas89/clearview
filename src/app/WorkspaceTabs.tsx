@@ -1,20 +1,36 @@
 type WorkspaceTab = "timeline" | "gantt" | "changeOrders" | "account";
 
+type WorkspaceTabDefinition = {
+  id: WorkspaceTab;
+  label: string;
+};
+
 type WorkspaceTabsProps = {
   activeTab: WorkspaceTab;
   onSelect: (tab: WorkspaceTab) => void;
+  tabs?: WorkspaceTabDefinition[];
+  orientation?: "horizontal" | "vertical";
 };
 
-const TABS: Array<{ id: WorkspaceTab; label: string }> = [
+const DEFAULT_TABS: WorkspaceTabDefinition[] = [
   { id: "timeline", label: "Timeline" },
   { id: "gantt", label: "Gantt" },
   { id: "changeOrders", label: "Change Orders" },
   { id: "account", label: "Account" },
 ];
 
-export const WorkspaceTabs = ({ activeTab, onSelect }: WorkspaceTabsProps) => (
-  <div className="app__tabs" role="tablist" aria-label="Workspace view">
-    {TABS.map((tab) => (
+export const WorkspaceTabs = ({
+  activeTab,
+  onSelect,
+  tabs = DEFAULT_TABS,
+  orientation = "horizontal",
+}: WorkspaceTabsProps) => (
+  <div
+    className={`app__tabs app__tabs--${orientation}`}
+    role="tablist"
+    aria-label="Workspace view"
+  >
+    {tabs.map((tab) => (
       <button
         key={tab.id}
         type="button"
@@ -29,4 +45,6 @@ export const WorkspaceTabs = ({ activeTab, onSelect }: WorkspaceTabsProps) => (
   </div>
 );
 
-export type { WorkspaceTab };
+export const WORKSPACE_TABS = DEFAULT_TABS;
+
+export type { WorkspaceTab, WorkspaceTabDefinition };

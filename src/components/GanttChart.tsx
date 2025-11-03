@@ -2,7 +2,9 @@ import {
   ChangeEvent,
   CSSProperties,
   FormEvent,
+  forwardRef,
   useCallback,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -26,14 +28,24 @@ type GanttChartProps = {
   selectedProjectId: string | null;
   onCreateTask: (input: TaskFormState) => void;
   onUpdateTask: (taskId: string, input: TaskFormState) => void;
+  showHeader?: boolean;
+  showControls?: boolean;
+  dayWidth?: number;
+  onDayWidthChange?: (value: number) => void;
+  statusFilter?: StatusFilter;
+  onStatusFilterChange?: (value: StatusFilter) => void;
+  selectedTaskId?: string;
+  onSelectedTaskIdChange?: (taskId: string) => void;
+  className?: string;
 };
+
+export type StatusFilter = "all" | TaskStatus;
 
 const DAY_MS = 86_400_000;
 const DEFAULT_DAY_WIDTH = 72;
 const LABEL_WIDTH = 200;
 const MIN_TIMELINE_DAYS = 14;
 const TIMELINE_BUFFER_DAYS = 3;
-type StatusFilter = "all" | TaskStatus;
 const STATUS_PROGRESS: Record<TaskStatus, number> = {
   todo: 0,
   "in-progress": 50,
@@ -68,12 +80,85 @@ const createDefaultTaskForm = (projectId: string): TaskFormState => {
   };
 };
 
-const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdateTask: onUpdateTaskProp }: GanttChartProps) => {
+export type GanttChartHandle = {
+  openCreateTask: () => void;
+  openEditTask: (taskId?: string) => void;
+  scrollToToday: () => void;
+};
+
+const GanttChart = forwardRef<GanttChartHandle, GanttChartProps>(({
+  projects,
+  tasks,
+  selectedProjectId,
+  onCreateTask,
+  onUpdateTask: onUpdateTaskProp,
+  showHeader = true,
+  showControls = true,
+  dayWidth: dayWidthProp,
+  onDayWidthChange,
+  statusFilter: statusFilterProp,
+  onStatusFilterChange,
+  selectedTaskId: selectedTaskIdProp,
+  onSelectedTaskIdChange,
+  className = "",
+}, ref) => {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [dayWidth, setDayWidth] = useState(DEFAULT_DAY_WIDTH);
-  const [selectedTaskId, setSelectedTaskId] = useState<string>("");
+  const [internalStatusFilter, setInternalStatusFilter] = useState<StatusFilter>("all");
+  const [internalDayWidth, setInternalDayWidth] = useState(DEFAULT_DAY_WIDTH);
+  const [internalSelectedTaskId, setInternalSelectedTaskId] = useState<string>("");
   const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    if (statusFilterProp !== undefined) {
+      setInternalStatusFilter(statusFilterProp);
+    }
+  }, [statusFilterProp]);
+
+  useEffect(() => {
+    if (dayWidthProp !== undefined) {
+      setInternalDayWidth(dayWidthProp);
+    }
+  }, [dayWidthProp]);
+
+  useEffect(() => {
+    if (selectedTaskIdProp !== undefined) {
+      setInternalSelectedTaskId(selectedTaskIdProp);
+    }
+  }, [selectedTaskIdProp]);
+
+  const statusFilter = statusFilterProp ?? internalStatusFilter;
+  const dayWidth = dayWidthProp ?? internalDayWidth;
+  const selectedTaskId = selectedTaskIdProp ?? internalSelectedTaskId;
+
+  const setStatusFilter = useCallback(
+    (value: StatusFilter) => {
+      onStatusFilterChange?.(value);
+      if (statusFilterProp === undefined) {
+        setInternalStatusFilter(value);
+      }
+    },
+    [onStatusFilterChange, statusFilterProp],
+  );
+
+  const setDayWidth = useCallback(
+    (value: number) => {
+      onDayWidthChange?.(value);
+      if (dayWidthProp === undefined) {
+        setInternalDayWidth(value);
+      }
+    },
+    [onDayWidthChange, dayWidthProp],
+  );
+
+  const setSelectedTaskId = useCallback(
+    (value: string) => {
+      onSelectedTaskIdChange?.(value);
+      if (selectedTaskIdProp === undefined) {
+        setInternalSelectedTaskId(value);
+      }
+    },
+    [onSelectedTaskIdChange, selectedTaskIdProp],
+  );
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -287,20 +372,23 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
 
   const hasRows = rows.length > 0;
 
-  const resolveDefaultProjectId = () => selectedProjectId ?? (projects[0]?.id ?? "");
+  const resolveDefaultProjectId = useCallback(
+    () => selectedProjectId ?? (projects[0]?.id ?? ""),
+    [selectedProjectId, projects],
+  );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [taskForm, setTaskForm] = useState<TaskFormState>(() => createDefaultTaskForm(resolveDefaultProjectId()));
 
-  const openCreateModal = () => {
+  const openCreateModal = useCallback(() => {
     const defaultProject = resolveDefaultProjectId();
     setTaskForm(createDefaultTaskForm(defaultProject));
     setEditingTaskId(null);
     setIsModalOpen(true);
-  };
+  }, [resolveDefaultProjectId]);
 
-  const openEditModal = (task: Task) => {
+  const openEditModal = useCallback((task: Task) => {
     setTaskForm({
       projectId: task.projectId,
       name: task.name,
@@ -312,7 +400,44 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
     });
     setEditingTaskId(task.id);
     setIsModalOpen(true);
-  };
+  }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openCreateTask: () => openCreateModal(),
+      openEditTask: (taskId?: string) => {
+        if (taskId) {
+          const target = tasks.find((task) => task.id === taskId);
+          if (target) {
+            openEditModal(target);
+            return;
+          }
+        }
+        if (selectedTask) {
+          openEditModal(selectedTask);
+        }
+      },
+      scrollToToday: () => {
+        const viewport = viewportRef.current;
+        if (!viewport) {
+          return;
+        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayIso = toISODate(today);
+        const todayIndex = timeline.days.findIndex((date) => toISODate(date) === todayIso);
+        if (todayIndex >= 0) {
+          const offset = LABEL_WIDTH + todayIndex * dayWidth;
+          viewport.scrollTo({
+            left: Math.max(offset - viewport.clientWidth / 2, 0),
+            behavior: "smooth",
+          });
+        }
+      },
+    }),
+    [dayWidth, openCreateModal, openEditModal, selectedTask, tasks, timeline.days],
+  );
 
   const handleEditSelectedTask = () => {
     if (selectedTask) {
@@ -382,88 +507,92 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
   }, [taskForm.dependencies, tasks, isUpdating]);
 
   return (
-    <section className="gantt">
-      <header className="gantt__header">
-        <div className="gantt__title">
-          <h2>{projectTitle}</h2>
-          <p>{projectSubtitle}</p>
-        </div>
-        <div className="gantt__metrics">
-          <div className="gantt__metric">
-            <span>Total</span>
-            <strong>{total}</strong>
+    <section className={`gantt${className ? ` ${className}` : ""}`}>
+      {showHeader && (
+        <header className="gantt__header">
+          <div className="gantt__title">
+            <h2>{projectTitle}</h2>
+            <p>{projectSubtitle}</p>
           </div>
-          <div className="gantt__metric">
-            <span>In progress</span>
-            <strong>{inProgress}</strong>
+          <div className="gantt__metrics">
+            <div className="gantt__metric">
+              <span>Total</span>
+              <strong>{total}</strong>
+            </div>
+            <div className="gantt__metric">
+              <span>In progress</span>
+              <strong>{inProgress}</strong>
+            </div>
+            <div className="gantt__metric">
+              <span>Done</span>
+              <strong>{done}</strong>
+            </div>
+            <div className="gantt__metric">
+              <span>Milestones</span>
+              <strong>{milestones}</strong>
+            </div>
+            <div className={`gantt__metric${overdue > 0 ? " gantt__metric--alert" : ""}`}>
+              <span>Overdue</span>
+              <strong>{overdue}</strong>
+            </div>
           </div>
-          <div className="gantt__metric">
-            <span>Done</span>
-            <strong>{done}</strong>
-          </div>
-          <div className="gantt__metric">
-            <span>Milestones</span>
-            <strong>{milestones}</strong>
-          </div>
-          <div className={`gantt__metric${overdue > 0 ? " gantt__metric--alert" : ""}`}>
-            <span>Overdue</span>
-            <strong>{overdue}</strong>
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <div className="gantt__controls">
-        <div className="gantt__filters">
-          {filterOptions.map(({ label, value }) => (
+      {showControls && (
+        <div className="gantt__controls">
+          <div className="gantt__filters">
+            {filterOptions.map(({ label, value }) => (
+              <button
+                key={value}
+                type="button"
+                className={`gantt__chip${statusFilter === value ? " is-active" : ""}`}
+                aria-pressed={statusFilter === value}
+                onClick={() => setStatusFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="gantt__actions">
+            <label className="gantt__slider">
+              <span>Day width</span>
+              <input
+                type="range"
+                min={48}
+                max={128}
+                step={4}
+                value={dayWidth}
+                onChange={handleDayWidthChange}
+              />
+            </label>
+            <div className="gantt__select-group">
+              <select value={selectedTaskId} onChange={handleTaskSelectChange}>
+                <option value="">Select a task...</option>
+                {tasks.map((task) => (
+                  <option key={task.id} value={task.id}>
+                    {task.name}
+                  </option>
+                ))}
+              </select>
+              <button type="button" onClick={handleEditSelectedTask} disabled={!canEditSelectedTask}>
+                Edit
+              </button>
+              <button type="button" className="danger" disabled>
+                Delete
+              </button>
+            </div>
             <button
-              key={value}
               type="button"
-              className={`gantt__chip${statusFilter === value ? " is-active" : ""}`}
-              aria-pressed={statusFilter === value}
-              onClick={() => setStatusFilter(value)}
+              className="gantt__primary"
+              onClick={openCreateModal}
+              disabled={projects.length === 0}
             >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="gantt__actions">
-          <label className="gantt__slider">
-            <span>Day width</span>
-            <input
-              type="range"
-              min={48}
-              max={128}
-              step={4}
-              value={dayWidth}
-              onChange={handleDayWidthChange}
-            />
-          </label>
-          <div className="gantt__select-group">
-            <select value={selectedTaskId} onChange={handleTaskSelectChange}>
-              <option value="">Select a task...</option>
-              {tasks.map((task) => (
-                <option key={task.id} value={task.id}>
-                  {task.name}
-                </option>
-              ))}
-            </select>
-            <button type="button" onClick={handleEditSelectedTask} disabled={!canEditSelectedTask}>
-              Edit
-            </button>
-            <button type="button" className="danger" disabled>
-              Delete
+              New task
             </button>
           </div>
-          <button
-            type="button"
-            className="gantt__primary"
-            onClick={openCreateModal}
-            disabled={projects.length === 0}
-          >
-            New task
-          </button>
         </div>
-      </div>
+      )}
 
       <div className="gantt__viewport" ref={viewportRef} style={viewportStyle}>
         <div className="gantt__table" style={tableVars}>
@@ -634,6 +763,7 @@ const GanttChart = ({ projects, tasks, selectedProjectId, onCreateTask, onUpdate
       )}
     </section>
   );
-};
+});
 
 export default GanttChart;
+

@@ -1,6 +1,6 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import SidebarPanel from "../features/sidebar/SidebarPanel";
-import { WorkspaceTabs, WorkspaceTab } from "./WorkspaceTabs";
+import { WORKSPACE_TABS, WorkspaceTabs, WorkspaceTab } from "./WorkspaceTabs";
 import { useWorkspace } from "../workspace/WorkspaceContext";
 import type { DayActivity } from "../types";
 import logo from "../assets/logo.png";
@@ -40,6 +40,25 @@ const formatActivity = (activity: DayActivity) => {
 };
 
 export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) => {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.innerWidth <= 768;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const {
     navigateTab,
     session,
@@ -86,6 +105,15 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
     window.dispatchEvent(new Event("cv:open-new-project"));
   }, []);
 
+  const navigationTabs = useMemo(() => {
+    if (!isMobile) {
+      return WORKSPACE_TABS;
+    }
+    return WORKSPACE_TABS.filter(
+      (tab) => tab.id === "gantt" || tab.id === "changeOrders",
+    );
+  }, [isMobile]);
+
   return (
     <div className="app-shell">
       <header className="social-header">
@@ -95,13 +123,6 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
             <span className="social-header__title">Clear View Teams</span>
             <span className="social-header__subtitle">Collaborate with your crew</span>
           </div>
-        </div>
-        <div className="social-header__search">
-          <input
-            type="search"
-            placeholder="Search updates, people, or projects"
-            aria-label="Search workspace"
-          />
         </div>
         <div className="social-header__actions">
           <button
@@ -127,7 +148,11 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
 
           <section aria-label="Workspace navigation">
             <div className="workspace-tabs">
-              <WorkspaceTabs activeTab={activeTab} onSelect={navigateTab} />
+              <WorkspaceTabs
+                activeTab={activeTab}
+                onSelect={navigateTab}
+                tabs={navigationTabs}
+              />
               <button
                 type="button"
                 className="app__tab app__tab--cta"
