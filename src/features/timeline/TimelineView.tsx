@@ -18,18 +18,6 @@ type FeedPost = DayPost & {
   day: string;
 };
 
-type LocalComment = {
-  id: string;
-  author: string;
-  message: string;
-  createdAt: string;
-};
-
-type LikeState = {
-  liked: boolean;
-  count: number;
-};
-
 type FeedItem =
   | {
       kind: "post";
@@ -60,34 +48,14 @@ type PostComposerProps = {
 type PostCardProps = {
   post: FeedPost;
   currentUserName: string;
-  likeState: LikeState;
-  comments: LocalComment[];
-  commentDraft: string;
   toastMessage?: string | null;
   isDeleting: boolean;
-  onToggleLike: (postId: string) => void;
-  onDraftChange: (postId: string, value: string) => void;
-  onSubmitComment: (postId: string) => void;
-  onShare: (post: FeedPost) => void;
   onDelete?: (post: FeedPost) => void;
   onEdit?: (post: FeedPost) => void;
 };
 
 type FileCardProps = {
   item: Extract<FeedItem, { kind: "file" }>;
-};
-
-const newComment = (author: string, message: string): LocalComment => {
-  const id =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return {
-    id,
-    author,
-    message,
-    createdAt: new Date().toISOString(),
-  };
 };
 
 const getFileExtension = (fileName: string | undefined | null) => {
@@ -152,13 +120,6 @@ const formatRelativeTime = (isoDate: string) => {
   return "";
 };
 
-const computeSeedLikeCount = (postId: string) => {
-  let code = 0;
-  for (let index = 0; index < postId.length; index += 1) {
-    code += postId.charCodeAt(index) * (index + 1);
-  }
-  return (code % 19) + 3;
-};
 
 const formatFileSize = (size: number) => {
   if (size >= 1024 * 1024) {
@@ -244,24 +205,13 @@ const PostComposer = ({
 const PostCard = ({
   post,
   currentUserName,
-  likeState,
-  comments,
-  commentDraft,
   toastMessage,
   isDeleting,
-  onToggleLike,
-  onDraftChange,
-  onSubmitComment,
-  onShare,
   onDelete,
   onEdit,
 }: PostCardProps) => {
   const formattedTime = formatRelativeTime(post.createdAt || post.day);
   const absoluteTime = new Date(post.createdAt || post.day).toLocaleString();
-
-  const handleShareClick = () => {
-    onShare(post);
-  };
 
   const handleDeleteClick = () => {
     if (onDelete) {
@@ -275,7 +225,7 @@ const PostCard = ({
     }
   };
 
-  const author = post.authorName || "Teammate";
+  const author = post.authorName || currentUserName || "Teammate";
   const authorInitial = author.charAt(0).toUpperCase();
 
   return (
@@ -350,77 +300,11 @@ const PostCard = ({
           </div>
         )}
       </div>
-      <footer className="social-feed__footer">
-        <div className="social-feed__actions">
-          <button
-            type="button"
-            className={`social-feed__action${likeState.liked ? " is-active" : ""}`}
-            onClick={() => onToggleLike(post.id)}
-            aria-pressed={likeState.liked}
-          >
-            ❤️ {likeState.count}
-          </button>
-          <button
-            type="button"
-            className="social-feed__action"
-            onClick={() => {
-              if (typeof document !== "undefined") {
-                const input = document.getElementById(
-                  `comment-input-${post.id}`,
-                ) as HTMLInputElement | null;
-                if (input) {
-                  input.focus();
-                }
-              }
-            }}
-          >
-            💬 {comments.length}
-          </button>
-          <button type="button" className="social-feed__action" onClick={handleShareClick}>
-            🔗 Share
-          </button>
-        </div>
-        {toastMessage && <p className="social-feed__toast">{toastMessage}</p>}
-        <div className="social-feed__comments">
-          {comments.map((comment) => (
-            <div key={comment.id} className="social-comment">
-              <div className="social-comment__avatar" aria-hidden="true">
-                {comment.author.charAt(0).toUpperCase()}
-              </div>
-              <div className="social-comment__bubble">
-                <div className="social-comment__meta">
-                  <span>{comment.author}</span>
-                  <time dateTime={comment.createdAt}>{formatRelativeTime(comment.createdAt)}</time>
-                </div>
-                <p>{comment.message}</p>
-              </div>
-            </div>
-          ))}
-          <div className="social-comment__form">
-            <div className="social-comment__avatar" aria-hidden="true">
-              {currentUserName.charAt(0).toUpperCase()}
-            </div>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                onSubmitComment(post.id);
-              }}
-            >
-              <input
-                type="text"
-                placeholder="Write a comment..."
-                value={commentDraft}
-                onChange={(event) => onDraftChange(post.id, event.target.value)}
-                aria-label="Add a comment"
-                id={`comment-input-${post.id}`}
-              />
-              <button type="submit" disabled={!commentDraft.trim()}>
-                Reply
-              </button>
-            </form>
-          </div>
-        </div>
-      </footer>
+      {toastMessage && (
+        <footer className="social-feed__footer">
+          <p className="social-feed__toast">{toastMessage}</p>
+        </footer>
+      )}
     </article>
   );
 };
@@ -491,9 +375,6 @@ const TimelineView = () => {
   const [composerFile, setComposerFile] = useState<File | null>(null);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
-  const [likes, setLikes] = useState<Record<string, LikeState>>({});
-  const [commentsByPost, setCommentsByPost] = useState<Record<string, LocalComment[]>>({});
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ postId?: string; message: string } | null>(null);
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -677,81 +558,6 @@ const TimelineView = () => {
     });
   }, [dayEntries]);
 
-  const likeForPost = useCallback(
-    (postId: string): LikeState => likes[postId] ?? { liked: false, count: computeSeedLikeCount(postId) },
-    [likes],
-  );
-
-  const handleLikeToggle = useCallback((postId: string) => {
-    setLikes((prev) => {
-      const current = prev[postId] ?? { liked: false, count: computeSeedLikeCount(postId) };
-      const nextLiked = !current.liked;
-      const nextCount = Math.max(0, current.count + (nextLiked ? 1 : -1));
-      return {
-        ...prev,
-        [postId]: {
-          liked: nextLiked,
-          count: nextCount,
-        },
-      };
-    });
-  }, []);
-
-  const handleCommentDraftChange = useCallback((postId: string, value: string) => {
-    setCommentDrafts((prev) => ({
-      ...prev,
-      [postId]: value,
-    }));
-  }, []);
-
-  const handleCommentSubmit = useCallback(
-    (postId: string) => {
-      const draft = commentDrafts[postId]?.trim();
-      if (!draft) {
-        return;
-      }
-      setCommentsByPost((prev) => ({
-        ...prev,
-        [postId]: [...(prev[postId] ?? []), newComment(currentUserName, draft)],
-      }));
-      setCommentDrafts((prev) => ({
-        ...prev,
-        [postId]: "",
-      }));
-    },
-    [commentDrafts, currentUserName],
-  );
-
-  const handleShare = useCallback(async (post: FeedPost) => {
-    if (typeof window === "undefined") {
-      setToast({ postId: post.id, message: "Sharing is only available in the app." });
-      return;
-    }
-
-    const shareUrl = `${window.location.origin}${window.location.pathname}#post-${post.id}`;
-    const payload = {
-      title: "Clear View Teams update",
-      text: post.message,
-      url: shareUrl,
-    };
-
-    try {
-      if (navigator.share) {
-        await navigator.share(payload);
-        setToast({ postId: post.id, message: "Shared successfully!" });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(shareUrl);
-        setToast({ postId: post.id, message: "Link copied to clipboard." });
-      } else {
-        setToast({ postId: post.id, message: shareUrl });
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to share right now.";
-      setToast({ postId: post.id, message });
-    }
-  }, []);
-
   const handleDelete = useCallback(
     async (post: FeedPost) => {
       setDeletingPostId(post.id);
@@ -865,15 +671,8 @@ const TimelineView = () => {
                 key={item.id}
                 post={item.post}
                 currentUserName={currentUserName}
-                likeState={likeForPost(item.post.id)}
-                comments={commentsByPost[item.post.id] ?? []}
-                commentDraft={commentDrafts[item.post.id] ?? ""}
                 toastMessage={toast?.postId === item.post.id ? toast.message : null}
                 isDeleting={deletingPostId === item.post.id}
-                onToggleLike={handleLikeToggle}
-                onDraftChange={handleCommentDraftChange}
-                onSubmitComment={handleCommentSubmit}
-                onShare={handleShare}
                 onDelete={
                   !item.post.authorName || item.post.authorName === currentUserName
                     ? handleDelete
@@ -985,3 +784,5 @@ const TimelineView = () => {
 };
 
 export default TimelineView;
+
+

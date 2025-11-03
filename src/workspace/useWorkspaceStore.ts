@@ -386,6 +386,14 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
   if (noteResult.error) throw noteResult.error;
   if (fileResult.error) throw fileResult.error;
 
+  const noteRows = (noteResult.data ?? []) as Array<{
+    id: string;
+    note_date: string;
+    body: string | null;
+    created_at: string | null;
+    user_id: string | null;
+  }>;
+
   const membersError = memberResult.error;
   if (membersError) {
     console.warn("Unable to load project members:", membersError.message);
@@ -417,13 +425,14 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
     return entriesByDate.get(isoDate)!;
   };
 
-  (noteResult.data ?? []).forEach((note) => {
+  noteRows.forEach((note) => {
     const entry = ensureEntry(note.note_date);
     const authorRecord = note.user_id ? memberLookup.get(note.user_id) : undefined;
     const authorName =
       authorRecord?.name ||
       authorRecord?.email ||
       (note.user_id && note.user_id === session.user?.id ? "You" : null);
+
     entry.posts.push({
       id: note.id,
       message: note.body ?? "",
