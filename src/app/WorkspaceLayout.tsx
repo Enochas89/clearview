@@ -109,10 +109,17 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
     if (!isMobile) {
       return WORKSPACE_TABS;
     }
-    return WORKSPACE_TABS.filter(
-      (tab) => tab.id === "gantt" || tab.id === "changeOrders",
-    );
+    return WORKSPACE_TABS.filter((tab) => tab.id === "timeline");
   }, [isMobile]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      return;
+    }
+    if (activeTab !== "timeline") {
+      navigateTab("timeline");
+    }
+  }, [isMobile, activeTab, navigateTab]);
 
   return (
     <div className="app-shell">
