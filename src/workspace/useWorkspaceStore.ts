@@ -469,13 +469,30 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
     });
   }
 
+  const inferContentType = (name?: string | null, provided?: string | null) => {
+    const cleanProvided = (provided ?? "").trim();
+    if (cleanProvided) return cleanProvided;
+    const raw = name ?? "";
+    const lastDot = raw.lastIndexOf(".");
+    if (lastDot === -1) return "";
+    const ext = raw.slice(lastDot + 1).toLowerCase().trim();
+    if (!ext) return "";
+    if (["jpg", "jpeg", "png", "gif", "bmp", "svg", "webp", "heic", "heif"].includes(ext)) {
+      return ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+    }
+    if (ext === "pdf") return "application/pdf";
+    return "";
+  };
+
   fileRows.forEach((file) => {
+    const effectiveType = inferContentType(file.file_name, file.content_type) || inferContentType(file.storage_path, null);
+    const effectiveName = file.file_name || file.storage_path;
     const entry = ensureEntry(file.note_date);
     const fileRecord: DayFile = {
       id: file.id,
-      name: file.file_name,
+      name: effectiveName,
       size: Number(file.file_size ?? 0),
-      type: file.content_type ?? "",
+      type: effectiveType,
       addedAt: file.created_at ?? "",
       url: signedUrlMap.get(file.storage_path) ?? "",
       storagePath: file.storage_path,
