@@ -63,11 +63,12 @@ const getFileExtension = (fileName: string | undefined | null) => {
     return "";
   }
   const lastDot = fileName.lastIndexOf(".");
-  return lastDot >= 0 ? fileName.slice(lastDot + 1).toLowerCase() : "";
+  return lastDot >= 0 ? fileName.slice(lastDot + 1).toLowerCase().trim() : "";
 };
 
 const isImageFile = (file: Pick<DayFile, "type" | "name">) => {
-  if (file.type && file.type.startsWith("image/")) {
+  const mime = (file.type ?? "").toLowerCase().trim();
+  if (mime.startsWith("image/")) {
     return true;
   }
   const extension = getFileExtension(file.name);
