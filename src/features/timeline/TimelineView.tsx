@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useWorkspace } from "../../workspace/WorkspaceContext";
@@ -213,14 +214,18 @@ const PostCard = ({
 }: PostCardProps) => {
   const formattedTime = formatRelativeTime(post.createdAt || post.day);
   const absoluteTime = new Date(post.createdAt || post.day).toLocaleString();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const handleDeleteClick = () => {
+    setIsMenuOpen(false);
     if (onDelete) {
       onDelete(post);
     }
   };
 
   const handleEditClick = () => {
+    setIsMenuOpen(false);
     if (onEdit) {
       onEdit(post);
     }
@@ -228,6 +233,26 @@ const PostCard = ({
 
   const author = post.authorName || currentUserName || "Teammate";
   const authorInitial = author.charAt(0).toUpperCase();
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isMenuOpen]);
 
   return (
     <article className="social-feed__card" id={`post-${post.id}`}>
@@ -242,27 +267,35 @@ const PostCard = ({
           </time>
         </div>
         {(onEdit || onDelete) && (
-          <div className="social-feed__meta-actions">
-            {onEdit && (
-              <button
-                type="button"
-                className="social-feed__edit"
-                onClick={handleEditClick}
-                aria-label="Edit post"
-              >
-                Edit
-              </button>
-            )}
-            {onDelete && (
-              <button
-                type="button"
-                className="social-feed__delete"
-                onClick={handleDeleteClick}
-                disabled={isDeleting}
-                aria-label="Delete post"
-              >
-                {isDeleting ? "Deleting..." : "Remove"}
-              </button>
+          <div className="social-feed__meta-actions" ref={menuRef}>
+            <button
+              type="button"
+              className="social-feed__menu-toggle"
+              aria-label="Post actions"
+              aria-expanded={isMenuOpen}
+              onClick={() => setIsMenuOpen((open) => !open)}
+              disabled={isDeleting}
+            >
+              ⋯
+            </button>
+            {isMenuOpen && (
+              <div className="social-feed__menu" role="menu">
+                {onEdit && (
+                  <button type="button" role="menuitem" onClick={handleEditClick}>
+                    Edit
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleDeleteClick}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
