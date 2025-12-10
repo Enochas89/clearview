@@ -464,10 +464,19 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
     const trySignedUrl = async (targetBucket: string) => {
       const { data, error } = await supabase.storage.from(targetBucket).createSignedUrl(storagePath, 60 * 60);
       if (error) {
-        console.error("Error creating signed URL", { bucket: targetBucket, path: storagePath, error });
+        console.error("Error creating signed URL", {
+          bucket: targetBucket,
+          path: storagePath,
+          message: error?.message ?? String(error),
+        });
         return null;
       }
       return data?.signedUrl ?? null;
+    };
+
+    const tryPublicUrl = (targetBucket: string) => {
+      const { data: publicUrlData } = supabase.storage.from(targetBucket).getPublicUrl(storagePath);
+      return publicUrlData?.publicUrl ?? null;
     };
 
     let finalBucket = bucketId;
@@ -476,6 +485,14 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
     if (!fileUrl && finalBucket !== DAILY_UPLOADS_BUCKET) {
       finalBucket = DAILY_UPLOADS_BUCKET;
       fileUrl = await trySignedUrl(finalBucket);
+    }
+
+    if (!fileUrl) {
+      fileUrl = tryPublicUrl(finalBucket);
+      if (!fileUrl && finalBucket !== DAILY_UPLOADS_BUCKET) {
+        finalBucket = DAILY_UPLOADS_BUCKET;
+        fileUrl = tryPublicUrl(finalBucket);
+      }
     }
 
     return { fileUrl: fileUrl ?? "", finalBucket };
