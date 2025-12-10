@@ -444,35 +444,6 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
   });
 
   const fileRows = fileResult.data ?? [];
-  const bucketGroups = new Map<string, string[]>();
-  fileRows.forEach((file) => {
-    const bucketId = resolveBucketId(file.bucket_id);
-    const storagePath = (file.storage_path ?? "").trim();
-    if (!storagePath) {
-      return;
-    }
-    if (!bucketGroups.has(bucketId)) {
-      bucketGroups.set(bucketId, []);
-    }
-    bucketGroups.get(bucketId)!.push(storagePath);
-  });
-
-  const signedUrlMap = new Map<string, string>();
-  for (const [bucketId, paths] of Array.from(bucketGroups.entries())) {
-    if (paths.length === 0) continue;
-    const { data, error } = await supabase.storage.from(bucketId).createSignedUrls(paths, 60 * 60);
-    if (error) {
-      console.error("Error creating signed URLs:", error);
-      continue;
-    }
-    (data ?? []).forEach((item) => {
-      const path = item?.path ?? null;
-      const signedUrl = item?.signedUrl ?? null;
-      if (path && signedUrl) {
-        signedUrlMap.set(path, signedUrl);
-      }
-    });
-  }
 
   const inferContentType = (name?: string | null, provided?: string | null) => {
     const cleanProvided = (provided ?? "").trim();
@@ -490,22 +461,24 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
   };
 
   const buildFileUrl = async (bucketId: string, storagePath: string) => {
+    const trySignedUrl = async (targetBucket: string) => {
+      const { data, error } = await supabase.storage.from(targetBucket).createSignedUrl(storagePath, 60 * 60);
+      if (error) {
+        console.error("Error creating signed URL", { bucket: targetBucket, path: storagePath, error });
+        return null;
+      }
+      return data?.signedUrl ?? null;
+    };
+
     let finalBucket = bucketId;
-    let fileUrl = storagePath ? signedUrlMap.get(storagePath) ?? "" : "";
-    if (!fileUrl && storagePath) {
-      const { data: publicUrlData } = supabase.storage.from(finalBucket).getPublicUrl(storagePath);
-      if (publicUrlData?.publicUrl) {
-        fileUrl = publicUrlData.publicUrl;
-      }
+    let fileUrl = await trySignedUrl(finalBucket);
+
+    if (!fileUrl && finalBucket !== DAILY_UPLOADS_BUCKET) {
+      finalBucket = DAILY_UPLOADS_BUCKET;
+      fileUrl = await trySignedUrl(finalBucket);
     }
-    if (!fileUrl && storagePath && finalBucket !== DAILY_UPLOADS_BUCKET) {
-      const { data, error } = await supabase.storage.from(DAILY_UPLOADS_BUCKET).createSignedUrl(storagePath, 60 * 60);
-      if (!error && data?.signedUrl) {
-        fileUrl = data.signedUrl;
-        finalBucket = DAILY_UPLOADS_BUCKET;
-      }
-    }
-    return { fileUrl, finalBucket };
+
+    return { fileUrl: fileUrl ?? "", finalBucket };
   };
 
   for (const file of fileRows) {
