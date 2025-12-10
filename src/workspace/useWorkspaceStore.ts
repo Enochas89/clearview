@@ -542,12 +542,12 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
           fileRecord.uploadedByName = post.authorName;
         }
         post.attachments.push(fileRecord);
-        return;
+        continue;
       }
     }
 
     entry.files.push(fileRecord);
-  });
+  }
 
   entriesByDate.forEach((entry) => {
     entry.posts.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
