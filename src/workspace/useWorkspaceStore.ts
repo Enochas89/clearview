@@ -489,20 +489,32 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
     return "";
   };
 
-  fileRows.forEach((file) => {
+  const buildFileUrl = async (bucketId: string, storagePath: string) => {
+    let finalBucket = bucketId;
+    let fileUrl = storagePath ? signedUrlMap.get(storagePath) ?? "" : "";
+    if (!fileUrl && storagePath) {
+      const { data: publicUrlData } = supabase.storage.from(finalBucket).getPublicUrl(storagePath);
+      if (publicUrlData?.publicUrl) {
+        fileUrl = publicUrlData.publicUrl;
+      }
+    }
+    if (!fileUrl && storagePath && finalBucket !== DAILY_UPLOADS_BUCKET) {
+      const { data, error } = await supabase.storage.from(DAILY_UPLOADS_BUCKET).createSignedUrl(storagePath, 60 * 60);
+      if (!error && data?.signedUrl) {
+        fileUrl = data.signedUrl;
+        finalBucket = DAILY_UPLOADS_BUCKET;
+      }
+    }
+    return { fileUrl, finalBucket };
+  };
+
+  for (const file of fileRows) {
     const storagePath = (file.storage_path ?? "").trim();
     const bucketId = resolveBucketId(file.bucket_id);
     const effectiveType = inferContentType(file.file_name, file.content_type) || inferContentType(storagePath, null);
     const effectiveName = file.file_name || storagePath;
     const entry = ensureEntry(file.note_date);
-    const signedUrl = storagePath ? signedUrlMap.get(storagePath) ?? "" : "";
-    let fileUrl = signedUrl;
-    if (!fileUrl && storagePath) {
-      const { data: publicUrlData } = supabase.storage.from(bucketId).getPublicUrl(storagePath);
-      if (publicUrlData?.publicUrl) {
-        fileUrl = publicUrlData.publicUrl;
-      }
-    }
+    const { fileUrl, finalBucket } = await buildFileUrl(bucketId, storagePath);
     const fileRecord: DayFile = {
       id: file.id,
       name: effectiveName,
@@ -511,7 +523,7 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
       addedAt: file.created_at ?? "",
       url: fileUrl,
       storagePath: storagePath || undefined,
-      bucketId,
+      bucketId: finalBucket,
       noteId: file.note_id ?? null,
       uploadedBy: file.uploaded_by ?? null,
       uploadedByName:
