@@ -616,35 +616,70 @@
 .social-feed__meta-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  position: relative;
 }
 
-.social-feed__edit {
-  padding: 6px 14px;
-  border-radius: 9999px;
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  background: rgba(219, 234, 254, 0.7);
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 600;
+.social-feed__menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.9);
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.social-feed__edit:hover,
-.social-feed__edit:focus-visible {
-  border-color: rgba(37, 99, 235, 0.6);
-  color: #1d4ed8;
-  background: rgba(191, 219, 254, 0.8);
+.social-feed__menu-toggle:hover,
+.social-feed__menu-toggle:focus-visible {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(219, 234, 254, 0.65);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
   outline: none;
 }
 
-.social-feed__delete {
-  padding: 6px 14px;
-  border-radius: 9999px;
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  background: rgba(254, 226, 226, 0.6);
-  color: #b91c1c;
-  font-size: 12px;
+.social-feed__menu {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  min-width: 160px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  display: grid;
+  gap: 6px;
+  z-index: 10;
+}
+
+.social-feed__menu button {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13px;
   font-weight: 600;
+  color: #0f172a;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.social-feed__menu button:hover,
+.social-feed__menu button:focus-visible {
+  background: rgba(219, 234, 254, 0.6);
+  border-color: rgba(59, 130, 246, 0.35);
+  outline: none;
+}
+
+.social-feed__menu button:last-child {
+  color: #b91c1c;
 }
 
 .social-feed__body p {
