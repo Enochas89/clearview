@@ -22,6 +22,7 @@ import { differenceInDays, parseISODate, toISODate } from "../utils/date";
 import { TaskReminder } from "./WorkspaceContext";
 
 const DAILY_UPLOADS_BUCKET = "daily-uploads";
+const resolveBucketId = (value?: string | null) => (value ?? "").trim() || DAILY_UPLOADS_BUCKET;
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error) {
@@ -445,7 +446,7 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
   const fileRows = fileResult.data ?? [];
   const bucketGroups = new Map<string, string[]>();
   fileRows.forEach((file) => {
-    const bucketId = file.bucket_id ?? DAILY_UPLOADS_BUCKET;
+    const bucketId = resolveBucketId(file.bucket_id);
     const storagePath = (file.storage_path ?? "").trim();
     if (!storagePath) {
       return;
@@ -490,7 +491,7 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
 
   fileRows.forEach((file) => {
     const storagePath = (file.storage_path ?? "").trim();
-    const bucketId = file.bucket_id ?? DAILY_UPLOADS_BUCKET;
+    const bucketId = resolveBucketId(file.bucket_id);
     const effectiveType = inferContentType(file.file_name, file.content_type) || inferContentType(storagePath, null);
     const effectiveName = file.file_name || storagePath;
     const entry = ensureEntry(file.note_date);
@@ -1144,7 +1145,7 @@ export const useWorkspaceStore = ({
           if (!storagePath) {
             return;
           }
-          const bucketId = attachment.bucketId ?? DAILY_UPLOADS_BUCKET;
+          const bucketId = resolveBucketId(attachment.bucketId);
           if (!bucketMap.has(bucketId)) {
             bucketMap.set(bucketId, []);
           }
@@ -1208,14 +1209,14 @@ export const useWorkspaceStore = ({
       outer: for (const entry of dayEntries) {
         const directFile = entry.files.find((file) => file.id === fileId);
         if (directFile) {
-          bucketId = directFile.bucketId ?? bucketId;
+          bucketId = resolveBucketId(directFile.bucketId);
           storagePath = directFile.storagePath;
           break outer;
         }
         for (const post of entry.posts) {
           const attachment = post.attachments.find((file) => file.id === fileId);
           if (attachment) {
-            bucketId = attachment.bucketId ?? bucketId;
+            bucketId = resolveBucketId(attachment.bucketId);
             storagePath = attachment.storagePath;
             break outer;
           }
