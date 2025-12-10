@@ -467,7 +467,9 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
         console.error("Error creating signed URL", {
           bucket: targetBucket,
           path: storagePath,
-          message: error?.message ?? String(error),
+          message: (error as { message?: string })?.message ?? String(error),
+          status: (error as { status?: number; statusCode?: number })?.status ?? (error as { statusCode?: number })?.statusCode,
+          details: (error as { error?: string })?.error,
         });
         return null;
       }
