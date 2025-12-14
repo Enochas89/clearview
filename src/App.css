@@ -3843,9 +3843,10 @@ a.calendar__post-menu-item {
 
 .change-orders__detail-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
   margin-top: 8px;
+  align-items: center;
 }
 
 .change-orders__composer-panel {
@@ -4191,6 +4192,11 @@ a.calendar__post-menu-item {
   .change-orders {
     padding: 28px;
     border-radius: 28px;
+  }
+
+  .change-orders__detail-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .modal__dialog--change-order {
