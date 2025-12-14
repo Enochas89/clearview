@@ -567,6 +567,12 @@ const fetchChangeOrders = async (projectId: string): Promise<ChangeOrder[]> => {
 };
 
 const fetchProjectMembers = async (projectId: string): Promise<ProjectMember[]> => {
+  const { data: projectRow } = await supabase
+    .from("projects")
+    .select("id, user_id, project_manager")
+    .eq("id", projectId)
+    .single();
+
   const { data, error } = await supabase
     .from("project_members")
     .select(
@@ -575,7 +581,26 @@ const fetchProjectMembers = async (projectId: string): Promise<ProjectMember[]> 
     .eq("project_id", projectId)
     .order("invited_at", { ascending: true });
   if (error) throw error;
-  return (data ?? []).map((row) => mapMemberFromRow(row as ProjectMemberRow));
+  const members = (data ?? []).map((row) => mapMemberFromRow(row as ProjectMemberRow));
+
+  const ownerId = projectRow?.user_id ?? null;
+  const hasOwner = ownerId ? members.some((m) => m.userId === ownerId) : true;
+  if (ownerId && !hasOwner) {
+    members.unshift({
+      id: `owner-${projectId}`,
+      projectId,
+      userId: ownerId,
+      email: projectRow?.project_manager || "Owner",
+      role: "owner",
+      status: "accepted",
+      invitedBy: null,
+      invitedAt: null,
+      acceptedAt: null,
+      fullName: projectRow?.project_manager ?? null,
+    });
+  }
+
+  return members;
 };
 
 const notifyChangeOrder = async (input: { changeOrderId: string; event: "created" | "status"; status?: ChangeOrderStatus }) => {
@@ -977,7 +1002,29 @@ export const useWorkspaceStore = ({
           "id, name, description, color, created_at, start_date, due_date, reference_id, cost, address, project_manager, user_id",
         );
       if (error) throw error;
-      return mapProjectFromRow((data as ProjectRow[])[0]);
+      const insertedProject = mapProjectFromRow((data as ProjectRow[])[0]);
+
+      // Ensure owner is also recorded as a project member for visibility in the team list.
+      const ownerEmail = session.user.email?.trim().toLowerCase() || null;
+      try {
+        await supabase.from("project_members").insert([
+          {
+            project_id: insertedProject.id,
+            user_id: session.user.id,
+            email: ownerEmail,
+            role: "owner",
+            status: "accepted",
+            invited_by: session.user.id,
+            invited_at: new Date().toISOString(),
+            accepted_at: new Date().toISOString(),
+            full_name: session.user.user_metadata?.full_name ?? null,
+          },
+        ]);
+      } catch (memberError) {
+        console.warn("Unable to insert owner into project_members:", memberError);
+      }
+
+      return insertedProject;
     },
     onSuccess: (project) => {
       notifySuccess("Project created.");
