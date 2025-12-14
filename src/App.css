@@ -713,10 +713,22 @@
   overflow: hidden;
 }
 
-.social-feed__attachment img {
+.social-feed__attachment.is-image img {
   width: 100%;
   height: 180px;
   object-fit: cover;
+}
+
+.social-feed__attachment:not(.is-image) {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.social-feed__attachment:not(.is-image) img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .social-feed__footer {
@@ -895,7 +907,7 @@
 
 .social-composer__attachment {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
@@ -903,6 +915,41 @@
   background: rgba(248, 250, 252, 0.9);
   border: 1px dashed rgba(148, 163, 184, 0.4);
   font-size: 13px;
+}
+
+.social-composer__attachment-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  color: #475569;
+}
+
+.social-composer__input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.social-composer__input-group input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  outline: none;
+}
+
+.social-composer__input-suffix {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 12px;
 }
 
 .social-composer__attachment button {

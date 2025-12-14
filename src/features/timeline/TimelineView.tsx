@@ -40,9 +40,12 @@ type PostComposerProps = {
   message: string;
   error: string | null;
   file: File | null;
+  fileName: string;
+  fileExtension: string;
   isSubmitting: boolean;
   onMessageChange: (value: string) => void;
   onFileSelect: (file: File | null) => void;
+  onFileNameChange: (value: string) => void;
   onSubmit: () => void;
 };
 
@@ -138,14 +141,18 @@ const PostComposer = ({
   message,
   error,
   file,
+  fileName,
+  fileExtension,
   isSubmitting,
   onMessageChange,
   onFileSelect,
+  onFileNameChange,
   onSubmit,
 }: PostComposerProps) => {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0] ?? null;
     onFileSelect(selectedFile);
+    event.target.value = "";
   };
 
   return (
@@ -175,7 +182,21 @@ const PostComposer = ({
         />
         {file && (
           <div className="social-composer__attachment">
-            <span>{file.name}</span>
+            <label className="social-composer__attachment-label">
+              File name
+              <div className="social-composer__input-group">
+                <input
+                  type="text"
+                  value={fileName}
+                  onChange={(event) => onFileNameChange(event.target.value)}
+                  required
+                />
+                {fileExtension && (
+                  <span className="social-composer__input-suffix">{fileExtension}</span>
+                )}
+              </div>
+              <small>{formatFileSize(file.size)}</small>
+            </label>
             <button
               type="button"
               onClick={() => onFileSelect(null)}
@@ -407,6 +428,8 @@ const TimelineView = () => {
 
   const [composerMessage, setComposerMessage] = useState("");
   const [composerFile, setComposerFile] = useState<File | null>(null);
+  const [composerFileName, setComposerFileName] = useState("");
+  const [composerFileExtension, setComposerFileExtension] = useState("");
   const [composerError, setComposerError] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
   const [toast, setToast] = useState<{ postId?: string; message: string } | null>(null);
@@ -614,9 +637,32 @@ const TimelineView = () => {
       setComposerError("Attachments are limited to 100 MB.");
       return;
     }
+    if (!file) {
+      setComposerFile(null);
+      setComposerFileName("");
+      setComposerFileExtension("");
+      setComposerError(null);
+      return;
+    }
+    const lastDot = file.name.lastIndexOf(".");
+    const extension = lastDot >= 0 ? file.name.slice(lastDot) : "";
+    const baseName = lastDot >= 0 ? file.name.slice(0, lastDot) : file.name;
+
     setComposerError(null);
     setComposerFile(file);
+    setComposerFileName(baseName);
+    setComposerFileExtension(extension);
   }, []);
+
+  const handleComposerFileNameChange = useCallback(
+    (value: string) => {
+      setComposerFileName(value);
+      if (composerError && value.trim().length > 0) {
+        setComposerError(null);
+      }
+    },
+    [composerError],
+  );
 
   const handleCreatePostRequest = useCallback(async () => {
     const trimmed = composerMessage.trim();
@@ -627,13 +673,31 @@ const TimelineView = () => {
 
     setComposerError(null);
     setIsPosting(true);
+    let fileToUpload: File | undefined = composerFile ?? undefined;
+    if (composerFile) {
+      const baseName = composerFileName.trim();
+      if (!baseName) {
+        setComposerError("Enter a name for your attachment.");
+        setIsPosting(false);
+        return;
+      }
+      const finalName = `${baseName}${composerFileExtension}`;
+      if (finalName !== composerFile.name) {
+        fileToUpload = new File([composerFile], finalName, {
+          type: composerFile.type,
+          lastModified: composerFile.lastModified,
+        });
+      }
+    }
     try {
       await handleCreatePost({
         message: trimmed,
-        file: composerFile ?? undefined,
+        file: fileToUpload,
       });
       setComposerMessage("");
       setComposerFile(null);
+      setComposerFileName("");
+      setComposerFileExtension("");
       setToast({ message: "Update shared with the team!" });
       setIsComposerOpen(false);
     } catch (error) {
@@ -643,7 +707,7 @@ const TimelineView = () => {
     } finally {
       setIsPosting(false);
     }
-  }, [composerFile, composerMessage, handleCreatePost]);
+  }, [composerFile, composerFileExtension, composerFileName, composerMessage, handleCreatePost]);
 
   if (projects.length === 0) {
     return (
@@ -758,9 +822,12 @@ const TimelineView = () => {
               message={composerMessage}
               error={composerError}
               file={composerFile}
+              fileName={composerFileName}
+              fileExtension={composerFileExtension}
               isSubmitting={isPosting}
               onMessageChange={setComposerMessage}
               onFileSelect={handleFileSelect}
+              onFileNameChange={handleComposerFileNameChange}
               onSubmit={handleCreatePostRequest}
             />
           </div>
@@ -818,5 +885,3 @@ const TimelineView = () => {
 };
 
 export default TimelineView;
-
-
