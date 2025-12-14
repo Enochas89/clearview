@@ -7,6 +7,7 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false); // New state to toggle between login and signup
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null); // New state for displaying errors
   const [message, setMessage] = useState<string | null>(null); // New state for displaying success messages
 
@@ -19,12 +20,27 @@ export default function Auth() {
     let authError = null;
 
     if (isSignUp) {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const trimmedName = displayName.trim();
+      if (!trimmedName) {
+        setError('Enter a display name to continue.');
+        setLoading(false);
+        return;
+      }
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: trimmedName,
+          },
+        },
+      });
       authError = error;
       if (!error && data.user) {
         setMessage('Please check your email to confirm your account.');
         setEmail(''); // Clear email field
         setPassword(''); // Clear password field
+        setDisplayName('');
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -66,6 +82,20 @@ export default function Auth() {
             className="auth-input"
             required
           />
+          {isSignUp && (
+            <>
+              <label htmlFor="display-name">Display name</label>
+              <input
+                id="display-name"
+                type="text"
+                placeholder="How your team will see you"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="auth-input"
+                required
+              />
+            </>
+          )}
           {error && <p className="auth-error-message">{error}</p>}
           {message && <p className="auth-success-message">{message}</p>} {/* Display success message */}
           <div className="auth-actions">
@@ -81,6 +111,7 @@ export default function Auth() {
                 setMessage(null); // Clear messages when switching view
                 setEmail(''); // Clear fields
                 setPassword(''); // Clear fields
+                setDisplayName('');
               }}
               disabled={loading}
             >
