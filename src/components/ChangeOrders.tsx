@@ -595,46 +595,36 @@ const ChangeOrderComposer = ({
               </div>
             </div>
           </div>
-          <aside className="change-order-modal__aside">
-            <div className="change-order-summary-card">
-              <div className="change-order-summary-card__header">
-                <h4>Send overview</h4>
-                <span className="change-order-summary-card__project">
-                  {project
-                    ? [project.name, project.referenceId].filter(Boolean).join(" / ")
-                    : "Workspace change order"}
-                </span>
-              </div>
-              <div className="change-order-summary-card__metrics">
-                <div className="change-order-summary-card__metric">
-                  <span className="change-order-summary-card__label">Recipients</span>
-                  <strong>{createRecipientCount}</strong>
-                </div>
-                <div className="change-order-summary-card__metric">
-                  <span className="change-order-summary-card__label">Line items</span>
-                  <strong>{createLineItemCount}</strong>
-                </div>
-                <div className="change-order-summary-card__metric">
-                  <span className="change-order-summary-card__label">Estimated cost</span>
-                  <strong>{currencyFormatter.format(createTotalCost)}</strong>
-                </div>
-              </div>
+        </div>
+        {errors.root && <p className="modal__error">{errors.root.message}</p>}
+        <div className="modal__actions modal__actions--inline">
+          <div className="change-order-summary-card__metrics">
+            <div className="change-order-summary-card__metric">
+              <span className="change-order-summary-card__label">Recipients</span>
+              <strong>{createRecipientCount}</strong>
             </div>
-            {errors.root && <p className="modal__error">{errors.root.message}</p>}
-            <div className="modal__actions modal__actions--vertical">
-              <button
-                type="button"
-                className="modal__secondary"
-                onClick={handleClearForm}
-                disabled={isSubmitting}
-              >
-                Clear form
-              </button>
-              <button type="submit" className="modal__primary" disabled={isSubmitting}>
-                {isSubmitting ? "Sending..." : "Send change order"}
-              </button>
+            <div className="change-order-summary-card__metric">
+              <span className="change-order-summary-card__label">Line items</span>
+              <strong>{createLineItemCount}</strong>
             </div>
-          </aside>
+            <div className="change-order-summary-card__metric">
+              <span className="change-order-summary-card__label">Estimated cost</span>
+              <strong>{currencyFormatter.format(createTotalCost)}</strong>
+            </div>
+          </div>
+          <div className="modal__actions-group">
+            <button
+              type="button"
+              className="modal__secondary"
+              onClick={handleClearForm}
+              disabled={isSubmitting}
+            >
+              Clear form
+            </button>
+            <button type="submit" className="modal__primary" disabled={isSubmitting}>
+              {isSubmitting ? "Sending..." : "Send change order"}
+            </button>
+          </div>
         </div>
       </form>
     </section>
@@ -1442,5 +1432,4 @@ const ChangeOrderComposer = ({
 };
 
 export default ChangeOrders;
-
 
