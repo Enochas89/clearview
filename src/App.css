@@ -3572,7 +3572,7 @@ a.calendar__post-menu-item {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   color: #475569;
   font-size: 13px;
 }
@@ -3586,6 +3586,22 @@ a.calendar__post-menu-item {
 
 .change-orders__table-wrapper {
   overflow-x: auto;
+}
+
+.change-orders__table-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  min-width: 320px;
+}
+
+.change-orders__table-filters .change-orders__search input {
+  width: 100%;
+}
+
+.change-orders__table-filters .change-orders__chips {
+  justify-content: flex-end;
 }
 
 .change-orders__table {

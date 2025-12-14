@@ -993,19 +993,18 @@ const ChangeOrderComposer = ({
 
       <div className="change-orders__summary">
         <div className="change-orders__summary-card">
+          <span>Awaiting decision</span>
+          <strong>{stats.awaiting}</strong>
+          <small>{currencyFormatter.format(stats.awaitingValue)}</small>
+        </div>
+        <div className="change-orders__summary-card">
+          <span>Signed off</span>
+          <strong>{stats.signedOff}</strong>
+          <small>{currencyFormatter.format(stats.approvedValue)}</small>
+        </div>
+        <div className="change-orders__summary-card">
           <span>Total requests</span>
           <strong>{stats.total}</strong>
-        </div>
-        <div className="change-orders__summary-card">
-          <span>Awaiting decision value</span>
-          <strong>{currencyFormatter.format(stats.awaitingValue)}</strong>
-        </div>
-        <div className="change-orders__summary-card">
-          <span>Signed off value</span>
-          <strong>{currencyFormatter.format(stats.approvedValue)}</strong>
-        </div>
-        <div className="change-orders__summary-card">
-          <span>Total value</span>
           <strong>{currencyFormatter.format(stats.totalValue)}</strong>
         </div>
         <div className="change-orders__summary-card change-orders__summary-card--wide">
@@ -1028,38 +1027,39 @@ const ChangeOrderComposer = ({
         <span>{CHANGE_ORDER_GUIDANCE_MESSAGE}</span>
       </div>
 
-      <div className="change-orders__filters">
-        <label className="change-orders__search">
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={handleSearchChange}
-            placeholder="Search change orders"
-          />
-        </label>
-        <div className="change-orders__chips" role="tablist" aria-label="Filter change orders">
-          {STATUS_FILTER_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`change-orders__chip${filter === option.value ? " is-active" : ""}`}
-              aria-pressed={filter === option.value}
-              onClick={() => handleFilterChange(option.value)}
-            >
-              <span>{option.label}</span>
-              <span className="change-orders__chip-count">{filterCounts[option.value]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="change-orders__layout">
         <div className="change-orders__table-card" role="region" aria-live="polite">
           <div className="change-orders__table-headline">
-            <h2>Log</h2>
-            <span>
-              {filteredOrders.length} change order{filteredOrders.length === 1 ? "" : "s"} shown
-            </span>
+            <div>
+              <h2>Change order log</h2>
+              <span>
+                {filteredOrders.length} change order{filteredOrders.length === 1 ? "" : "s"} shown
+              </span>
+            </div>
+            <div className="change-orders__table-filters">
+              <label className="change-orders__search">
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  placeholder="Search subject or contact"
+                />
+              </label>
+              <div className="change-orders__chips" role="tablist" aria-label="Filter change orders">
+                {STATUS_FILTER_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`change-orders__chip${filter === option.value ? " is-active" : ""}`}
+                    aria-pressed={filter === option.value}
+                    onClick={() => handleFilterChange(option.value)}
+                  >
+                    <span>{option.label}</span>
+                    <span className="change-orders__chip-count">{filterCounts[option.value]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="change-orders__table-wrapper">
             <table className="change-orders__table">
@@ -1442,8 +1442,5 @@ const ChangeOrderComposer = ({
 };
 
 export default ChangeOrders;
-
-
-
 
 
