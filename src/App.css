@@ -4884,6 +4884,11 @@ a.calendar__post-menu-item {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .co-composer__header h2 {
@@ -4932,6 +4937,14 @@ a.calendar__post-menu-item {
   padding: 10px;
   font-size: 13px;
   background: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.co-form__field input:focus,
+.co-form__field textarea:focus {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.7);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
 }
 
 .co-form__stack {
@@ -4949,10 +4962,12 @@ a.calendar__post-menu-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
 }
 
 .co-form__header h4 {
   margin: 0;
+  font-size: 14px;
 }
 
 .co-form__list {
@@ -4991,6 +5006,29 @@ a.calendar__post-menu-item {
 
 .co-form__row-inline label {
   flex: 1 1 120px;
+}
+
+.co-form__header button,
+.co-form__actions .co__ghost,
+.co-form__actions .co__primary {
+  border-radius: 10px;
+}
+
+.co-form__header button {
+  padding: 8px 12px;
+  font-weight: 700;
+  border: 1px solid rgba(37, 99, 235, 0.4);
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.co-form__header button:hover,
+.co-form__header button:focus-visible {
+  background: rgba(37, 99, 235, 0.14);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .co-form__remove {
