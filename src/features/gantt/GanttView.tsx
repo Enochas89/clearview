@@ -179,6 +179,16 @@ const GanttView = () => {
             Create a project
           </button>
         </div>
+        <div className="schedule__board schedule__board--demo">
+          <header className="schedule__demo-header">
+            <div>
+              <span className="schedule__eyebrow">Construction sample</span>
+              <h2>Static Gantt preview</h2>
+              <p>Explore a styled Gantt experience using demo data without touching your workspace.</p>
+            </div>
+          </header>
+          <SampleGantt />
+        </div>
       </section>
     );
   }
@@ -202,6 +212,16 @@ const GanttView = () => {
               ))}
             </select>
           </label>
+        </div>
+        <div className="schedule__board schedule__board--demo">
+          <header className="schedule__demo-header">
+            <div>
+              <span className="schedule__eyebrow">Construction sample</span>
+              <h2>Static Gantt preview</h2>
+              <p>Explore a styled Gantt experience using demo data without touching your workspace.</p>
+            </div>
+          </header>
+          <SampleGantt />
         </div>
       </section>
     );
