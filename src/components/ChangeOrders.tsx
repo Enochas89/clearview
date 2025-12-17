@@ -851,17 +851,14 @@ const ChangeOrders = ({
 
   return (
     <section className="co">
-      <header className="co__header">
-        <div className="co__heading">
-          <p className="co__eyebrow">Change orders</p>
-          <h1>Keep scope changes simple</h1>
-          <p className="co__muted">
-            Track requests, capture approvals, and keep everyone aligned without the clutter.
-          </p>
-          <div className="co__project">
-            <span>Active project</span>
-            <strong>{project ? project.name : "Select a project"}</strong>
-            {project?.referenceId && <small>{project.referenceId}</small>}
+      <header className="co__header co__header--bar">
+        <div className="co__brand">
+          <div className="co__brand-mark">CO</div>
+          <div>
+            <h1>{project ? project.name : "Change orders"}</h1>
+            <p className="co__eyebrow">
+              {project?.referenceId ? `Project ${project.referenceId}` : "Select a project to begin"}
+            </p>
           </div>
         </div>
         <div className="co__header-actions">
@@ -943,16 +940,14 @@ const ChangeOrders = ({
                       className={`co__row${isSelected ? " is-selected" : ""}`}
                       onClick={() => setSelectedOrderId(order.id)}
                     >
-                      <div className="co__row-main">
-                        <div>
-                          <span className="co__code">{code}</span>
-                          <strong>{order.subject || "Untitled change order"}</strong>
-                          {order.description && <p>{order.description}</p>}
-                        </div>
+                      <div className="co__row-top">
                         <span className={`co__status co__status--${statusTone[order.status]}`}>
                           {statusLabel[order.status]}
                         </span>
+                        <span className="co__code">{code}</span>
                       </div>
+                      <strong className="co__row-title">{order.subject || "Untitled change order"}</strong>
+                      {order.description && <p className="co__row-body">{order.description}</p>}
                       <div className="co__row-meta">
                         <span>{order.recipientName || order.recipientEmail || "No contact"}</span>
                         <span>{formatDateDisplay(order.sentAt) || "Not sent"}</span>
@@ -999,14 +994,16 @@ const ChangeOrders = ({
                   <small>{selectedOrder.recipientEmail || "No email"}</small>
                 </div>
                 <div>
+                  <span>Impact</span>
+                  <strong>
+                    {selectedOrder.lineItems.reduce((total, item) => total + (Number(item.impactDays) || 0), 0)} days
+                  </strong>
+                  <small>Total of line items</small>
+                </div>
+                <div>
                   <span>Sent</span>
                   <strong>{formatDateDisplay(selectedOrder.sentAt) || "--"}</strong>
                   {selectedOrder.sentAt && <small>{formatRelativeTime(selectedOrder.sentAt)}</small>}
-                </div>
-                <div>
-                  <span>Last updated</span>
-                  <strong>{formatDateDisplay(selectedOrder.updatedAt) || "--"}</strong>
-                  {selectedOrder.updatedAt && <small>{formatRelativeTime(selectedOrder.updatedAt)}</small>}
                 </div>
                 <div>
                   <span>Total value</span>
@@ -1022,26 +1019,25 @@ const ChangeOrders = ({
                 {selectedOrder.lineItems.length === 0 ? (
                   <p className="co__muted">No line items added.</p>
                 ) : (
-                  <div className="co__table">
-                    <div className="co__table-row co__table-row--head">
-                      <span>Item</span>
+                  <div className="co__table co__table--grid">
+                    <div className="co__table-head">
                       <span>Description</span>
-                      <span>Impact (days)</span>
-                      <span>Cost</span>
+                      <span>Impact</span>
+                      <span className="co__right">Cost</span>
                     </div>
                     {selectedOrder.lineItems.map((item) => (
-                      <div key={item.id} className="co__table-row">
-                        <span>{item.title || "-"}</span>
-                        <span>{item.description || "-"}</span>
-                        <span>{item.impactDays ?? 0}</span>
-                        <span>{currencyFormatter.format(Number(item.cost) || 0)}</span>
+                      <div key={item.id} className="co__table-row co__table-row--hover">
+                        <span>{item.title || item.description || "-"}</span>
+                        <span className="co__muted">{item.impactDays ?? 0}d</span>
+                        <span className="co__right">
+                          {currencyFormatter.format(Number(item.cost) || 0)}
+                        </span>
                       </div>
                     ))}
                     <div className="co__table-row co__table-row--total">
                       <span>Total</span>
                       <span />
-                      <span />
-                      <span>{currencyFormatter.format(selectedOrderValue)}</span>
+                      <span className="co__right">{currencyFormatter.format(selectedOrderValue)}</span>
                     </div>
                   </div>
                 )}
@@ -1058,7 +1054,10 @@ const ChangeOrders = ({
                   <div className="co__recipient-list">
                     {selectedOrder.recipients.map((recipient) => (
                       <div key={recipient.id} className="co__recipient">
-                        <div>
+                        <div className="co__recipient-avatar">
+                          {(recipient.name || recipient.email || "?").charAt(0).toUpperCase()}
+                        </div>
+                        <div className="co__recipient-meta">
                           <strong>{recipient.name || recipient.email}</strong>
                           <small>{recipient.email}</small>
                         </div>

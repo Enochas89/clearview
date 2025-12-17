@@ -4260,11 +4260,41 @@ a.calendar__post-menu-item {
   flex-wrap: wrap;
 }
 
+.co__header--bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.co__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.co__brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0f172a, #111827);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .co__heading {
   display: flex;
   flex-direction: column;
   gap: 6px;
   max-width: 640px;
+}
+
+.co__heading h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.01em;
 }
 
 .co__eyebrow {
@@ -4506,6 +4536,23 @@ a.calendar__post-menu-item {
   background: #eef2ff;
 }
 
+.co__row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.co__row-title {
+  font-size: 15px;
+}
+
+.co__row-body {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+}
+
 .co__row-main {
   display: flex;
   justify-content: space-between;
@@ -4673,6 +4720,35 @@ a.calendar__post-menu-item {
   font-weight: 700;
 }
 
+.co__table--grid {
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.co__table-head {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1fr;
+  padding: 10px 12px;
+  background: #f8fafc;
+  font-weight: 700;
+  color: #475569;
+}
+
+.co__table-row--hover {
+  transition: background 0.15s ease;
+}
+
+.co__table-row--hover:hover {
+  background: #f8fafc;
+}
+
+.co__right {
+  text-align: right;
+}
+
 .co__recipient-list {
   display: flex;
   flex-direction: column;
@@ -4687,6 +4763,22 @@ a.calendar__post-menu-item {
   border-radius: 12px;
   border: 1px solid rgba(226, 232, 240, 0.9);
   background: #ffffff;
+  gap: 10px;
+}
+
+.co__recipient-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #eef2ff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.co__recipient-meta {
+  flex: 1;
 }
 
 .co__recipient strong {
