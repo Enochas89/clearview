@@ -1,5 +1,6 @@
 import { ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
 import GanttChart, { type GanttChartHandle, type StatusFilter } from "../../components/GanttChart";
+import SampleGantt from "../../components/SampleGantt";
 import { useWorkspace } from "../../workspace/WorkspaceContext";
 
 const DEFAULT_DAY_WIDTH = 72;
@@ -342,6 +343,17 @@ const GanttView = () => {
           onDayWidthChange={setDayWidth}
           statusFilter={statusFilter}
         />
+      </div>
+
+      <div className="schedule__board schedule__board--demo">
+        <header className="schedule__demo-header">
+          <div>
+            <span className="schedule__eyebrow">Construction sample</span>
+            <h2>Static Gantt preview</h2>
+            <p>Explore a styled Gantt experience using demo data without touching your workspace.</p>
+          </div>
+        </header>
+        <SampleGantt />
       </div>
     </section>
   );

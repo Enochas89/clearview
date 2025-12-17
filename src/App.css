@@ -5079,6 +5079,38 @@ a.calendar__post-menu-item {
   gap: 8px;
 }
 
+.schedule__board--demo {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.schedule__demo-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule__demo-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.schedule__demo-header p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+}
+
+.schedule__board--demo .gantt__container {
+  width: 100%;
+}
+
+.schedule__board--demo .schedule__eyebrow {
+  letter-spacing: 0.08em;
+}
+
 .co-overlay__panel::-webkit-scrollbar {
   width: 8px;
 }
