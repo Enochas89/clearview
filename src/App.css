@@ -6076,85 +6076,129 @@ a.calendar__post-menu-item {
 .gantt {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 32px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(209, 213, 219, 0.6);
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+  gap: 18px;
+  padding: 20px;
+  border-radius: 22px;
+  background: radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.08), transparent 25%),
+    radial-gradient(circle at 90% 20%, rgba(16, 185, 129, 0.08), transparent 25%),
+    #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+  color: #e2e8f0;
 }
 
 .gantt__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 24px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.gantt__header h2 {
+.gantt__title h2 {
   margin: 0;
   font-size: 20px;
   letter-spacing: -0.01em;
-  color: #0f172a;
+  color: #f8fafc;
 }
 
-.gantt__header p {
+.gantt__title p {
   margin: 6px 0 0;
-  color: #64748b;
+  color: #cbd5e1;
   font-size: 13px;
-  max-width: 420px;
+  max-width: 460px;
 }
 
-.gantt__title {
+.gantt__metrics {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gantt__metric {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 92px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.gantt__metric span {
+  font-size: 10px;
+  color: #a5b4fc;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gantt__metric strong {
+  font-size: 16px;
+  color: #e2e8f0;
+  letter-spacing: -0.01em;
+}
+
+.gantt__metric--alert {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.gantt__metric--alert strong {
+  color: #fecdd3;
 }
 
 .gantt__controls {
   display: flex;
-  flex-direction: column;
-  gap: 18px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .gantt__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .gantt__chip {
-  padding: 7px 16px;
+  padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  background: rgba(255, 255, 255, 0.95);
-  color: #475569;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
 }
 
 .gantt__chip:hover,
 .gantt__chip:focus-visible {
-  border-color: #2563eb;
-  color: #2563eb;
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #bfdbfe;
   outline: none;
 }
 
 .gantt__chip.is-active {
   background: linear-gradient(135deg, #2563eb, #7c3aed);
-  color: #ffffff;
+  color: #fff;
   border-color: transparent;
   box-shadow: 0 16px 32px rgba(59, 130, 246, 0.35);
 }
 
 .gantt__actions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .gantt__slider {
@@ -6162,18 +6206,18 @@ a.calendar__post-menu-item {
   flex-direction: column;
   gap: 4px;
   font-size: 11px;
-  color: #475569;
+  color: #cbd5e1;
 }
 
 .gantt__slider span {
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .gantt__slider input[type="range"] {
-  width: 160px;
-  accent-color: #2563eb;
+  width: 150px;
+  accent-color: #60a5fa;
 }
 
 .gantt__select-group {
@@ -6182,117 +6226,38 @@ a.calendar__post-menu-item {
   gap: 8px;
 }
 
-.gantt__select-group select {
-  min-width: 200px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(203, 213, 225, 0.9);
-  background: rgba(255, 255, 255, 0.95);
-  font-size: 12px;
-  color: #0f172a;
-}
-
 .gantt__select-group button {
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  background: rgba(248, 250, 255, 0.92);
-  color: #2563eb;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition: all 0.18s ease;
 }
 
 .gantt__select-group button:hover,
 .gantt__select-group button:focus-visible {
-  background: rgba(37, 99, 235, 0.12);
-  border-color: rgba(37, 99, 235, 0.4);
+  background: rgba(255, 255, 255, 0.16);
   outline: none;
 }
 
 .gantt__select-group button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: rgba(248, 250, 255, 0.7);
-}
-
-.gantt__select-group .danger {
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #b91c1c;
-}
-
-.gantt__select-group .danger:hover,
-.gantt__select-group .danger:focus-visible {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: rgba(239, 68, 68, 0.45);
-}
-
-.gantt__metrics {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
 }
 
 .gantt__primary {
-  border: none;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #2563eb 0%, #9333ea 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #14b8a6);
   color: #ffffff;
   font-size: 13px;
-  font-weight: 600;
-  padding: 10px 20px;
-  box-shadow: 0 18px 32px rgba(59, 130, 246, 0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-}
-
-.gantt__primary:hover,
-.gantt__primary:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 22px 36px rgba(59, 130, 246, 0.35);
-  outline: none;
-}
-
-.gantt__primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.gantt__metric {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: rgba(248, 250, 255, 0.94);
-  border: 1px solid rgba(226, 232, 240, 0.7);
-  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.08);
-  min-width: 92px;
-}
-
-.gantt__metric span {
-  font-size: 10px;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.gantt__metric strong {
-  font-size: 15px;
-  color: #1d4ed8;
-  letter-spacing: -0.01em;
-}
-
-.gantt__metric--alert {
-  background: rgba(254, 226, 226, 0.85);
-  border-color: rgba(248, 113, 113, 0.6);
-}
-
-.gantt__metric--alert strong {
-  color: #b91c1c;
+  font-weight: 700;
+  padding: 10px 16px;
+  box-shadow: 0 14px 28px rgba(20, 184, 166, 0.25);
 }
 
 .modal {
@@ -6573,12 +6538,12 @@ a.calendar__post-menu-item {
 }
 
 .gantt__viewport {
-  border-radius: 24px;
-  border: 1px solid rgba(226, 232, 240, 0.7);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: inset 0 1px 0 rgba(248, 250, 255, 0.6);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.04), transparent 30%),
+    rgba(15, 23, 42, 0.75);
   overflow: auto;
-  padding-bottom: 12px;
+  padding-bottom: 10px;
 }
 
 .gantt__viewport::-webkit-scrollbar {
@@ -6589,7 +6554,7 @@ a.calendar__post-menu-item {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   min-width: 100%;
 }
 
@@ -6604,10 +6569,10 @@ a.calendar__post-menu-item {
   position: sticky;
   top: 0;
   z-index: 3;
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgba(248, 250, 255, 0.98) 0%, rgba(236, 242, 255, 0.9) 100%);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
 }
 
 .gantt__head-label {
@@ -6615,15 +6580,15 @@ a.calendar__post-menu-item {
   left: 0;
   display: flex;
   align-items: center;
-  padding: 8px 14px;
+  padding: 10px 12px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #475569;
-  background: rgba(248, 250, 255, 0.98);
-  border-right: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 10px 0 16px rgba(15, 23, 42, 0.05);
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.98);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 10px 0 16px rgba(0, 0, 0, 0.18);
   z-index: 4;
 }
 
@@ -6631,10 +6596,10 @@ a.calendar__post-menu-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 0;
+  padding: 10px 0;
   font-size: 11px;
-  color: #475569;
-  border-left: 1px solid rgba(226, 232, 240, 0.4);
+  color: #cbd5e1;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .gantt__table-body {
@@ -6644,21 +6609,21 @@ a.calendar__post-menu-item {
 }
 
 .gantt__table-row {
-  border-radius: 14px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
 }
 
 .gantt__row-label {
   position: sticky;
   left: 0;
-  padding: 6px 10px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  background: rgba(248, 250, 255, 0.98);
-  border-right: 1px solid rgba(226, 232, 240, 0.8);
-  color: #0f172a;
+  background: rgba(15, 23, 42, 0.96);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
   z-index: 2;
 }
 
@@ -6716,16 +6681,15 @@ a.calendar__post-menu-item {
   min-height: 24px;
   background: repeating-linear-gradient(
       90deg,
-      rgba(226, 232, 240, 0.55) 0,
-      rgba(226, 232, 240, 0.55) 1px,
+      rgba(255, 255, 255, 0.08) 0,
+      rgba(255, 255, 255, 0.08) 1px,
       transparent 1px,
       transparent var(--gantt-day-width, 80px)
     ),
-    rgba(248, 250, 255, 0.92);
-  border-radius: 0 14px 14px 0;
-  border: 1px solid rgba(226, 232, 240, 0.7);
+    rgba(15, 23, 42, 0.7);
+  border-radius: 0 12px 12px 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-left: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .gantt__bar {
@@ -6736,18 +6700,24 @@ a.calendar__post-menu-item {
   border-radius: 8px;
   font-size: 10px;
   font-weight: 600;
-  color: #ffffff;
+  color: #f8fafc;
   min-height: 20px;
   text-transform: capitalize;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
   overflow: hidden;
   padding: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gantt__bar:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
 }
 
 .gantt__bar-progress {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
   pointer-events: none;
   transition: width 0.2s ease;
 }
@@ -6775,15 +6745,15 @@ a.calendar__post-menu-item {
 }
 
 .gantt__bar--todo {
-  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  background: linear-gradient(135deg, #334155 0%, #475569 100%);
 }
 
 .gantt__bar--in-progress {
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #38bdf8 100%);
 }
 
 .gantt__bar--done {
-  background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+  background: linear-gradient(135deg, #16a34a 0%, #4ade80 100%);
 }
 
 .gantt__table-empty {
@@ -6792,11 +6762,11 @@ a.calendar__post-menu-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed rgba(148, 163, 184, 0.5);
-  border-radius: 20px;
-  color: #94a3b8;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  color: #cbd5e1;
   font-size: 13px;
-  background: rgba(248, 250, 255, 0.9);
+  background: rgba(15, 23, 42, 0.6);
 }
 
 @media (max-width: 1240px) {
