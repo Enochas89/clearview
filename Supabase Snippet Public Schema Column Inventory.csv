@@ -1,0 +1,105 @@
+table_name,column_name,data_type,is_nullable,column_default
+change_order_recipients,id,uuid,NO,gen_random_uuid()
+change_order_recipients,change_order_id,uuid,NO,null
+change_order_recipients,email,text,NO,null
+change_order_recipients,name,text,YES,null
+change_order_recipients,status,text,NO,'pending'::text
+change_order_recipients,condition_note,text,YES,null
+change_order_recipients,response_token,uuid,NO,gen_random_uuid()
+change_order_recipients,responded_at,timestamp with time zone,YES,null
+change_order_recipients,created_at,timestamp with time zone,NO,now()
+change_orders,id,uuid,NO,gen_random_uuid()
+change_orders,project_id,uuid,NO,null
+change_orders,subject,text,NO,null
+change_orders,body,text,YES,null
+change_orders,recipient_name,text,YES,null
+change_orders,recipient_email,text,NO,null
+change_orders,status,text,NO,'pending'::text
+change_orders,sent_at,timestamp with time zone,NO,now()
+change_orders,updated_at,timestamp with time zone,NO,now()
+change_orders,response_at,timestamp with time zone,YES,null
+change_orders,response_message,text,YES,null
+change_orders,created_by,uuid,YES,null
+change_orders,created_by_name,text,YES,null
+change_orders,responded_by,uuid,YES,null
+change_orders,responded_by_name,text,YES,null
+change_orders,created_at,timestamp with time zone,NO,now()
+change_orders,line_items,jsonb,NO,'[]'::jsonb
+client_contacts,id,uuid,NO,gen_random_uuid()
+client_contacts,project_id,uuid,NO,null
+client_contacts,full_name,text,NO,null
+client_contacts,email,text,NO,null
+client_contacts,phone,text,YES,null
+client_contacts,role,text,YES,null
+client_contacts,created_at,timestamp with time zone,NO,now()
+client_contacts,updated_at,timestamp with time zone,NO,now()
+client_profiles,id,uuid,NO,gen_random_uuid()
+client_profiles,project_id,uuid,NO,null
+client_profiles,company_name,text,NO,null
+client_profiles,contact_name,text,NO,null
+client_profiles,contact_email,text,NO,null
+client_profiles,contact_phone,text,YES,null
+client_profiles,address,text,YES,null
+client_profiles,created_at,timestamp with time zone,NO,now()
+client_profiles,updated_at,timestamp with time zone,NO,now()
+day_files,id,uuid,NO,gen_random_uuid()
+day_files,project_id,uuid,NO,null
+day_files,note_date,date,NO,null
+day_files,bucket_id,text,NO,'daily-uploads'::text
+day_files,storage_path,text,NO,null
+day_files,file_name,text,NO,null
+day_files,file_size,bigint,NO,null
+day_files,content_type,text,NO,null
+day_files,uploaded_by,uuid,YES,null
+day_files,created_at,timestamp with time zone,NO,now()
+day_files,note_id,uuid,YES,null
+mail_queue,id,bigint,NO,null
+mail_queue,topic,text,NO,null
+mail_queue,payload,jsonb,NO,null
+mail_queue,created_at,timestamp with time zone,NO,now()
+mail_queue,processed_at,timestamp with time zone,YES,null
+notes,id,uuid,NO,gen_random_uuid()
+notes,project_id,uuid,NO,null
+notes,note_date,date,NO,null
+notes,body,text,NO,''::text
+notes,user_id,uuid,YES,null
+notes,created_at,timestamp with time zone,NO,now()
+project_members,id,uuid,NO,gen_random_uuid()
+project_members,project_id,uuid,NO,null
+project_members,user_id,uuid,YES,null
+project_members,email,text,NO,null
+project_members,role,USER-DEFINED,NO,'viewer'::member_role
+project_members,status,USER-DEFINED,NO,'pending'::member_status
+project_members,invited_by,uuid,YES,null
+project_members,invited_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
+project_members,accepted_at,timestamp with time zone,YES,null
+project_members,full_name,text,YES,null
+projects,id,uuid,NO,gen_random_uuid()
+projects,user_id,uuid,NO,null
+projects,name,text,NO,null
+projects,description,text,YES,null
+projects,color,text,YES,'#2563eb'::text
+projects,reference_id,text,YES,null
+projects,cost,text,YES,null
+projects,address,text,YES,null
+projects,project_manager,text,YES,null
+projects,start_date,date,YES,null
+projects,due_date,date,YES,null
+projects,created_at,timestamp with time zone,NO,now()
+tasks,id,uuid,NO,gen_random_uuid()
+tasks,project_id,uuid,NO,null
+tasks,name,text,NO,null
+tasks,description,text,YES,null
+tasks,start_date,date,YES,null
+tasks,due_date,date,YES,null
+tasks,baseline_start_date,date,YES,null
+tasks,baseline_due_date,date,YES,null
+tasks,actual_start_date,date,YES,null
+tasks,actual_due_date,date,YES,null
+tasks,percent_complete,numeric,NO,0
+tasks,dependencies,ARRAY,NO,'{}'::uuid[]
+tasks,assignee,text,YES,null
+tasks,is_milestone,boolean,NO,false
+tasks,notes,text,YES,null
+tasks,status,USER-DEFINED,NO,'todo'::task_status
+tasks,created_at,timestamp with time zone,NO,now()

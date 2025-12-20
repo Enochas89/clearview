@@ -1,0 +1,333 @@
+import { FormEvent, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { InviteMemberResult, MemberRole, MemberStatus, ProjectMember } from "../types";
+
+type ProjectMembersPanelProps = {
+  projectId: string;
+  members: ProjectMember[];
+  currentUserId: string;
+  currentUserEmail: string | null;
+  allowInviteFallback?: boolean;
+  onInvite: (input: {
+    projectId: string;
+    email: string;
+    role: MemberRole;
+    name: string;
+  }) => Promise<InviteMemberResult | undefined>;
+  onUpdateRole: (memberId: string, role: MemberRole) => Promise<void> | void;
+  onRemoveMember: (memberId: string) => Promise<void> | void;
+};
+
+const roleLabels: Record<MemberRole, string> = {
+  owner: "Owner",
+  editor: "Editor",
+  viewer: "Viewer",
+};
+
+const statusLabels: Record<MemberStatus, string> = {
+  accepted: "Active",
+  pending: "Pending invite",
+};
+
+type InviteFeedback = {
+  type: "success" | "muted";
+  message: string;
+};
+
+const getInitials = (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "?";
+  }
+  const parts = trimmed.split(/\s+/);
+  const [first, second] = parts;
+  if (!second) {
+    return first.slice(0, 2).toUpperCase();
+  }
+  return `${first[0]}${second[0]}`.toUpperCase();
+};
+
+const ProjectMembersPanel = ({
+  projectId,
+  members,
+  currentUserId,
+  currentUserEmail,
+  allowInviteFallback = false,
+  onInvite,
+  onUpdateRole,
+  onRemoveMember,
+}: ProjectMembersPanelProps) => {
+  const [nameValue, setNameValue] = useState("");
+  const [emailValue, setEmailValue] = useState("");
+  const [roleValue, setRoleValue] = useState<MemberRole>("viewer");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [panelFeedback, setPanelFeedback] = useState<InviteFeedback | null>(null);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const modalRoot = typeof document !== "undefined" ? document.body : null;
+
+  const normalizedCurrentEmail = (currentUserEmail ?? "").toLowerCase();
+
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((a, b) => {
+      if (a.role === b.role) {
+        return (a.email ?? "").localeCompare(b.email ?? "");
+      }
+      const priority: MemberRole[] = ["owner", "editor", "viewer"];
+      return priority.indexOf(a.role) - priority.indexOf(b.role);
+    });
+  }, [members]);
+
+  const ownerCount = useMemo(
+    () => members.filter((member) => member.role === "owner").length,
+    [members],
+  );
+
+  const currentMember = useMemo(() => {
+    return sortedMembers.find(
+      (member) =>
+        member.userId === currentUserId ||
+        (member.email ?? "").toLowerCase() === normalizedCurrentEmail,
+    );
+  }, [sortedMembers, currentUserId, normalizedCurrentEmail]);
+
+  const hasRoleInviteAccess = Boolean(
+    currentMember && (currentMember.role === "owner" || currentMember.role === "editor"),
+  );
+
+  const canInvite = hasRoleInviteAccess || allowInviteFallback;
+  const canManageRoles = currentMember?.role === "owner" || allowInviteFallback;
+
+  const openInviteModal = () => {
+    setLocalError(null);
+    setIsInviteModalOpen(true);
+  };
+
+  const closeInviteModal = (force = false) => {
+    if (isSubmitting && !force) {
+      return;
+    }
+    setIsInviteModalOpen(false);
+    setLocalError(null);
+    setNameValue("");
+    setEmailValue("");
+    setRoleValue("viewer");
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLocalError(null);
+    setPanelFeedback(null);
+
+    const trimmedName = nameValue.trim();
+    const trimmedEmail = emailValue.trim();
+
+    if (!trimmedEmail) {
+      setLocalError("Enter an email address to send an invite.");
+      return;
+    }
+
+    if (!trimmedName) {
+      setLocalError("Enter a name so teammates know who is joining.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    let shouldCloseModal = false;
+
+    try {
+      const result = await onInvite({
+        projectId,
+        email: trimmedEmail,
+        role: roleValue,
+        name: trimmedName,
+      });
+
+      const message = result?.emailWarning ?? `Invite sent to ${trimmedEmail}.`;
+      const type: InviteFeedback["type"] = result?.emailWarning ? "muted" : "success";
+
+      setPanelFeedback({ type, message });
+      shouldCloseModal = true;
+    } catch (err: any) {
+      setLocalError(err?.message ?? "Failed to send invite.");
+    } finally {
+      setIsSubmitting(false);
+      if (shouldCloseModal) {
+        closeInviteModal(true);
+      }
+    }
+  };
+
+  return (
+    <section className="members">
+      <div className="members__header">
+        <div>
+          <h2>Team members</h2>
+          <p>Invite teammates to collaborate and manage their access.</p>
+        </div>
+        {canInvite && (
+          <button
+            type="button"
+            className="members__invite-launch"
+            onClick={openInviteModal}
+          >
+            Invite teammate
+          </button>
+        )}
+      </div>
+      {panelFeedback && (
+        <p className={`members__message members__message--${panelFeedback.type}`}>
+          {panelFeedback.message}
+        </p>
+      )}
+      {sortedMembers.length === 0 ? (
+        <div className="members__empty">No members yet. Send an invite to get started.</div>
+      ) : (
+        <div className="members__list" role="list">
+          {sortedMembers.map((member) => {
+            const displayName = member.fullName && member.fullName.trim().length > 0
+              ? member.fullName
+              : member.email;
+            const initials = displayName ? getInitials(displayName) : "?";
+            const statusLabel = statusLabels[member.status] ?? member.status;
+            const isSelf =
+              member.userId === currentUserId ||
+              (member.email ?? "").toLowerCase() === normalizedCurrentEmail;
+            const lockRole =
+              member.role === "owner" &&
+              ownerCount <= 1 &&
+              (isSelf || !canManageRoles);
+
+            return (
+              <div key={member.id} className="members__row" role="listitem">
+                <div className="members__person">
+                  <span className="members__avatar" aria-hidden="true">
+                    {initials}
+                  </span>
+                  <div className="members__details">
+                    <strong>{displayName}</strong>
+                    <span className="members__email">{member.email}</span>
+                  </div>
+                </div>
+                <div className="members__role">
+                  {canManageRoles ? (
+                    <select
+                      value={member.role}
+                      onChange={(event) =>
+                        onUpdateRole(member.id, event.target.value as MemberRole)
+                      }
+                      disabled={lockRole || member.status === "pending"}
+                      aria-label={`Update role for ${displayName}`}
+                    >
+                      <option value="owner">Owner</option>
+                      <option value="editor">Editor</option>
+                      <option value="viewer">Viewer</option>
+                    </select>
+                  ) : (
+                    <span className={`members__role-badge members__role-badge--${member.role}`}>
+                      {roleLabels[member.role]}
+                    </span>
+                  )}
+                </div>
+                <span className="members__status">{statusLabel}</span>
+                {canManageRoles && !isSelf && (
+                  <button
+                    type="button"
+                    className="members__remove-button"
+                    onClick={() => onRemoveMember(member.id)}
+                  >
+                    Remove
+                  </button>
+                )}
+                {isSelf && <span className="members__self-tag">You</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {modalRoot && isInviteModalOpen
+        ? createPortal(
+            <div className="members-modal" role="dialog" aria-modal="true" aria-labelledby="members-invite-title">
+              <div className="members-modal__backdrop" onClick={closeInviteModal} />
+              <div
+                className="members-modal__dialog"
+                role="document"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <header className="members-modal__header">
+                  <h3 id="members-invite-title">Invite teammate</h3>
+                  <button
+                    type="button"
+                    className="members-modal__close"
+                    onClick={closeInviteModal}
+                    disabled={isSubmitting}
+                  >
+                    Close
+                  </button>
+                </header>
+                <form className="members-modal__form" onSubmit={handleSubmit}>
+                  <label className="members__label">
+                    <span>Name</span>
+                    <input
+                      type="text"
+                      value={nameValue}
+                      onChange={(event) => setNameValue(event.target.value)}
+                      placeholder="Teammate name"
+                      disabled={isSubmitting}
+                      required
+                      autoFocus
+                    />
+                  </label>
+                  <label className="members__label">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={emailValue}
+                      onChange={(event) => setEmailValue(event.target.value)}
+                      placeholder="teammate@example.com"
+                      disabled={isSubmitting}
+                      required
+                    />
+                  </label>
+                  <label className="members__label">
+                    <span>Role</span>
+                    <select
+                      value={roleValue}
+                      onChange={(event) => setRoleValue(event.target.value as MemberRole)}
+                      disabled={isSubmitting}
+                    >
+                      <option value="viewer">Viewer</option>
+                      <option value="editor">Editor</option>
+                      <option value="owner">Owner</option>
+                    </select>
+                  </label>
+                  {localError && <p className="members__message members__message--error">{localError}</p>}
+                  <div className="members-modal__actions">
+                    <button
+                      type="button"
+                      className="members-modal__cancel"
+                      onClick={closeInviteModal}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="members__invite-button members-modal__submit"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? "Sending..." : "Send invite"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>,
+            modalRoot,
+          )
+        : null}
+    </section>
+  );
+};
+
+export default ProjectMembersPanel;
