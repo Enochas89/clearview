@@ -42,3 +42,4 @@
 }
 .social-main--wide { grid-column: 2 / 4; }
 .social-layout--wide .social-activity { display: none; }
+.gantt.is-exporting .gantt__slider { display: none; }
