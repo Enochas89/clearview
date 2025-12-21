@@ -40,3 +40,5 @@
   .gantt-grid__table-header, .gantt-grid__row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .gantt-grid__table-header span:last-child, .gantt-grid__row > span:last-child { display: none; }
 }
+.social-main--wide { grid-column: 2 / 4; }
+.social-layout--wide .social-activity { display: none; }

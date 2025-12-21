@@ -123,6 +123,9 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
 
   const showActivitySidebar = activeTab !== "gantt";
 
+  const layoutClass = `social-layout${showActivitySidebar ? "" : " social-layout--wide"}`;
+  const mainClass = `app__main social-main${showActivitySidebar ? "" : " social-main--wide"}`;
+
   return (
     <div className="app-shell">
       <header className="social-header">
@@ -143,7 +146,7 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
           </button>
         </div>
       </header>
-      <div className={`social-layout${showActivitySidebar ? "" : " social-layout--two-column"}`}>
+      <div className={layoutClass}>
         <aside className="social-sidebar">
           <section className="social-profile-card" aria-label="Your profile">
             <div className="social-profile-card__avatar" aria-hidden="true">
@@ -181,7 +184,7 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
           </section>
         </aside>
 
-        <main className="app__main social-main" aria-live="polite">
+        <main className={mainClass} aria-live="polite">
           {children}
         </main>
 
