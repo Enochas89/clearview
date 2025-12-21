@@ -42,3 +42,5 @@
 }
 .social-main--wide { grid-column: 2 / 4; }
 .social-layout--wide .social-activity { display: none; }
+.gantt.is-exporting .gantt__slider input { display: none; }
+.gantt.is-exporting .gantt__slider::after { content: attr(data-zoom-label); margin-left: 8px; font-weight: 700; color: #e2e8f0; }
