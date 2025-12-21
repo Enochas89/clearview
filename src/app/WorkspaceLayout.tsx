@@ -121,6 +121,8 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
     }
   }, [isMobile, activeTab, navigateTab]);
 
+  const showActivitySidebar = activeTab !== "gantt";
+
   return (
     <div className="app-shell">
       <header className="social-header">
@@ -141,7 +143,7 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
           </button>
         </div>
       </header>
-      <div className="social-layout">
+      <div className={`social-layout${showActivitySidebar ? "" : " social-layout--two-column"}`}>
         <aside className="social-sidebar">
           <section className="social-profile-card" aria-label="Your profile">
             <div className="social-profile-card__avatar" aria-hidden="true">
@@ -183,77 +185,79 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
           {children}
         </main>
 
-        <aside className="social-activity" aria-label="Workspace highlights">
-          <section className="social-card">
-            <header className="social-card__header">
-              <h3>Upcoming milestones</h3>
-              {activeProject?.dueDate && (
-                <span className="social-card__badge">
-                  Due {formatDueDate(activeProject.dueDate)}
-                </span>
-              )}
-            </header>
-            {upcomingDueTasks.length === 0 ? (
-              <p className="social-card__empty">No deadlines on the horizon.</p>
-            ) : (
-              <ul className="social-card__list">
-                {upcomingDueTasks.slice(0, 5).map((task) => (
-                  <li key={task.id}>
-                    <span className="social-card__item-title">{task.name}</span>
-                    <span className="social-card__item-meta">
-                      Due in {task.daysUntilDue} day{task.daysUntilDue === 1 ? "" : "s"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="social-card">
-            <header className="social-card__header">
-              <h3>Recent activity</h3>
-            </header>
-            {visibleActivities.length === 0 ? (
-              <p className="social-card__empty">Nothing new yet.</p>
-            ) : (
-              <ul className="social-card__list social-card__list--dense">
-                {visibleActivities.map((activity, index) => (
-                  <li key={`${activity.title}-${index}`}>
-                    <span className={`social-card__pill social-card__pill--${activity.type}`}>
-                      {activity.type === "post" ? "Post" : "File"}
-                    </span>
-                    <div className="social-card__item">
-                      <span className="social-card__item-title">{activity.title}</span>
-                      {activity.time && (
-                        <span className="social-card__item-meta">{activity.time}</span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="social-card">
-            <header className="social-card__header">
-              <h3>Project team</h3>
-            </header>
-            {visibleMembers.length === 0 ? (
-              <p className="social-card__empty">Invite teammates to collaborate.</p>
-            ) : (
-              <ul className="social-card__avatars">
-                {visibleMembers.map((member) => {
-                  const name = member.fullName || member.email || "Member";
-                  return (
-                    <li key={member.id} className="social-card__avatar" title={name}>
-                      {name.charAt(0).toUpperCase()}
+        {showActivitySidebar && (
+          <aside className="social-activity" aria-label="Workspace highlights">
+            <section className="social-card">
+              <header className="social-card__header">
+                <h3>Upcoming milestones</h3>
+                {activeProject?.dueDate && (
+                  <span className="social-card__badge">
+                    Due {formatDueDate(activeProject.dueDate)}
+                  </span>
+                )}
+              </header>
+              {upcomingDueTasks.length === 0 ? (
+                <p className="social-card__empty">No deadlines on the horizon.</p>
+              ) : (
+                <ul className="social-card__list">
+                  {upcomingDueTasks.slice(0, 5).map((task) => (
+                    <li key={task.id}>
+                      <span className="social-card__item-title">{task.name}</span>
+                      <span className="social-card__item-meta">
+                        Due in {task.daysUntilDue} day{task.daysUntilDue === 1 ? "" : "s"}
+                      </span>
                     </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        </aside>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="social-card">
+              <header className="social-card__header">
+                <h3>Recent activity</h3>
+              </header>
+              {visibleActivities.length === 0 ? (
+                <p className="social-card__empty">Nothing new yet.</p>
+              ) : (
+                <ul className="social-card__list social-card__list--dense">
+                  {visibleActivities.map((activity, index) => (
+                    <li key={`${activity.title}-${index}`}>
+                      <span className={`social-card__pill social-card__pill--${activity.type}`}>
+                        {activity.type === "post" ? "Post" : "File"}
+                      </span>
+                      <div className="social-card__item">
+                        <span className="social-card__item-title">{activity.title}</span>
+                        {activity.time && (
+                          <span className="social-card__item-meta">{activity.time}</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="social-card">
+              <header className="social-card__header">
+                <h3>Project team</h3>
+              </header>
+              {visibleMembers.length === 0 ? (
+                <p className="social-card__empty">Invite teammates to collaborate.</p>
+              ) : (
+                <ul className="social-card__avatars">
+                  {visibleMembers.map((member) => {
+                    const name = member.fullName || member.email || "Member";
+                    return (
+                      <li key={member.id} className="social-card__avatar" title={name}>
+                        {name.charAt(0).toUpperCase()}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </aside>
+        )}
       </div>
     </div>
   );
