@@ -151,8 +151,7 @@ const sendViaResend = async ({
   text: string;
 }) => {
   if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
-    console.warn("Resend configuration missing. Email send skipped.");
-    return { skipped: true };
+    throw new Error("Resend configuration missing (RESEND_API_KEY or RESEND_FROM_EMAIL).");
   }
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",

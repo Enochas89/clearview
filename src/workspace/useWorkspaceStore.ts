@@ -1274,6 +1274,7 @@ export const useWorkspaceStore = ({
         email: string;
         name: string | null;
         status: ChangeOrderRecipientStatus;
+        response_token: string;
       }> = [];
       const seenEmails = new Set<string>();
       const addRecipient = (email?: string | null, name?: string | null) => {
@@ -1287,6 +1288,7 @@ export const useWorkspaceStore = ({
           email: cleanedEmail,
           name: name?.trim() || null,
           status: "pending",
+          response_token: crypto.randomUUID(),
         });
       };
 
