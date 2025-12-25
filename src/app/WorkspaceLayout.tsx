@@ -121,10 +121,19 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
     }
   }, [isMobile, activeTab, navigateTab]);
 
-  const showActivitySidebar = activeTab !== "gantt";
+  const isChangeOrdersView = activeTab === "changeOrders";
+  const showActivitySidebar = activeTab !== "gantt" && !isChangeOrdersView;
 
-  const layoutClass = `social-layout${showActivitySidebar ? "" : " social-layout--wide"}`;
-  const mainClass = `app__main social-main${showActivitySidebar ? "" : " social-main--wide"}`;
+  const layoutClass = `social-layout${
+    showActivitySidebar
+      ? ""
+      : isChangeOrdersView
+      ? " social-layout--two-column"
+      : " social-layout--wide"
+  }`;
+  const mainClass = `app__main social-main${
+    !showActivitySidebar && !isChangeOrdersView ? " social-main--wide" : ""
+  }`;
 
   return (
     <div className="app-shell">
