@@ -41,5 +41,6 @@
   .gantt-grid__table-header span:last-child, .gantt-grid__row > span:last-child { display: none; }
 }
 .social-main--wide { grid-column: 2 / 4; }
+.social-main--full { grid-column: 2 / -1; }
 .social-layout--wide .social-activity { display: none; }
 .gantt.is-exporting .gantt__slider { display: none; }

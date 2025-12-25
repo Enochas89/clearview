@@ -132,7 +132,11 @@ export const WorkspaceLayout = ({ activeTab, children }: WorkspaceLayoutProps) =
       : " social-layout--wide"
   }`;
   const mainClass = `app__main social-main${
-    !showActivitySidebar && !isChangeOrdersView ? " social-main--wide" : ""
+    showActivitySidebar
+      ? ""
+      : isChangeOrdersView
+      ? " social-main--full"
+      : " social-main--wide"
   }`;
 
   return (
