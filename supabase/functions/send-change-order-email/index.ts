@@ -144,8 +144,7 @@ const renderPlainLineItems = (raw: unknown): string => {
 const buildActionUrl = (token: string, action: string) => {
   const responseBase =
     CONFIGURED_RESPONSE_BASE ||
-    (SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/change-order-respond` : "") ||
-    APP_URL;
+    (SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/change-order-respond` : "");
 
   if (!responseBase) return "";
 
