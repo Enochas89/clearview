@@ -44,3 +44,20 @@
 .social-main--full { grid-column: 2 / -1; }
 .social-layout--wide .social-activity { display: none; }
 .gantt.is-exporting .gantt__slider { display: none; }
+
+
+.co-respond {  min-height: 100vh;  display: flex;  align-items: center;  justify-content: center;  padding: 32px 16px;  background: radial-gradient(circle at top, rgba(59, 130, 246, 0.12), transparent 55%),    radial-gradient(circle at bottom, rgba(99, 102, 241, 0.1), transparent 50%),    #f8fafc;  color: #0f172a;}
+.co-respond__card {  width: min(640px, 100%);  background: #ffffff;  border: 1px solid rgba(226, 232, 240, 0.7);  border-radius: 16px;  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);  padding: 24px;  display: flex;  flex-direction: column;  gap: 16px; }
+.co-respond__header h1 {  margin: 4px 0 8px;  font-size: 22px; }
+.co-respond__eyebrow {  margin: 0;  font-size: 12px;  letter-spacing: 0.08em;  text-transform: uppercase;  color: #64748b; }
+.co-respond__muted {  margin: 0;  color: #475569;  font-size: 14px; }
+.co-respond__form {  display: flex;  flex-direction: column;  gap: 14px; }
+.co-respond__actions {  display: grid;  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));  gap: 10px; }
+.co-respond__action {  border: 1px solid rgba(148, 163, 184, 0.35);  background: #f8fafc;  border-radius: 12px;  padding: 12px;  font-weight: 600;  cursor: pointer;  transition: all 0.15s ease; }
+.co-respond__action.is-active {  border-color: #2563eb;  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.12);  color: #1d4ed8; }
+.co-respond__field {  display: flex;  flex-direction: column;  gap: 8px;  font-size: 14px; }
+.co-respond__field input, .co-respond__field textarea {  border: 1px solid rgba(148, 163, 184, 0.35);  border-radius: 10px;  padding: 10px 12px;  font-size: 14px;  background: #ffffff; }
+.co-respond__field textarea {  resize: vertical; }
+.co-respond__error {  margin: 0;  color: #b91c1c;  font-size: 14px; }
+.co-respond__success {  margin: 0;  color: #0f766e;  font-size: 14px; }
+.co-respond__submit {  align-self: flex-start;  padding: 12px 18px;  border-radius: 12px;  border: none;  background: linear-gradient(135deg, #2563eb, #3b82f6);  color: #fff;  font-weight: 600;  cursor: pointer;  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18); }

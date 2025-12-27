@@ -133,7 +133,8 @@ const renderPlainLineItems = (raw: unknown): string => {
 
 const buildActionUrl = (token: string, action: string) => {
   if (!APP_URL) return "";
-  const url = new URL("/change-order/respond", APP_URL);
+  const base = /^https?:\/\//i.test(APP_URL) ? APP_URL : `https://${APP_URL}`;
+  const url = new URL("/change-order/respond", base);
   url.searchParams.set("token", token);
   url.searchParams.set("action", action);
   return url.toString();

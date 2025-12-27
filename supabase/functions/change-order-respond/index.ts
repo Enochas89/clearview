@@ -37,6 +37,12 @@ type ChangeOrderStatus =
   | "denied"
   | "needs_info";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
 const renderHtmlResponse = (options: {
   title: string;
   message: string;
@@ -65,14 +71,14 @@ const renderHtmlResponse = (options: {
     </html>`,
     {
       status: options.status ?? 200,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
+      headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders },
     },
   );
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 
 const determineChangeOrderStatus = (
@@ -96,6 +102,10 @@ const determineChangeOrderStatus = (
 
 serve(async (req) => {
   const method = req.method.toUpperCase();
+
+  if (method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   const isHtmlPreferred = method === "GET" || (req.headers.get("accept") ?? "").includes("text/html");
 
   let token = "";

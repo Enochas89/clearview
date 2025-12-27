@@ -1269,19 +1269,26 @@ export const useWorkspaceStore = ({
 
       const inserted = data as ChangeOrderRow;
 
-      const recipientRows = (input.recipients ?? [])
-        .map((recipient) => {
-          const email = recipient.email?.trim().toLowerCase();
-          if (!email) {
-            return null;
-          }
-          return {
-            change_order_id: inserted.id,
-            email,
-            name: recipient.name?.trim() || null,
-          };
-        })
-        .filter(Boolean) as Array<{ change_order_id: string; email: string; name: string | null }>;
+      const recipientRows: Array<{
+        change_order_id: string;
+        email: string;
+        name: string | null;
+        response_token: string;
+      }> = [];
+      const addRecipient = (email?: string | null, name?: string | null) => {
+        const cleaned = email?.trim().toLowerCase();
+        if (!cleaned) return;
+        if (recipientRows.some((row) => row.email === cleaned)) return;
+        recipientRows.push({
+          change_order_id: inserted.id,
+          email: cleaned,
+          name: name?.trim() || null,
+          response_token: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : createId("resp"),
+        });
+      };
+
+      addRecipient(input.recipientEmail, input.recipientName);
+      (input.recipients ?? []).forEach((recipient) => addRecipient(recipient.email, recipient.name));
 
       if (recipientRows.length > 0) {
         const { error: recipientsError } = await supabase
