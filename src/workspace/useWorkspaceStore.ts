@@ -1269,29 +1269,19 @@ export const useWorkspaceStore = ({
 
       const inserted = data as ChangeOrderRow;
 
-      const recipientRows: Array<{
-        change_order_id: string;
-        email: string;
-        name: string | null;
-        status: ChangeOrderRecipientStatus;
-      }> = [];
-      const seenEmails = new Set<string>();
-      const addRecipient = (email?: string | null, name?: string | null) => {
-        const cleanedEmail = email?.trim().toLowerCase();
-        if (!cleanedEmail || seenEmails.has(cleanedEmail)) {
-          return;
-        }
-        seenEmails.add(cleanedEmail);
-        recipientRows.push({
-          change_order_id: inserted.id,
-          email: cleanedEmail,
-          name: name?.trim() || null,
-          status: "pending",
-        });
-      };
-
-      addRecipient(input.recipientEmail, input.recipientName);
-      (input.recipients ?? []).forEach((recipient) => addRecipient(recipient.email, recipient.name));
+      const recipientRows = (input.recipients ?? [])
+        .map((recipient) => {
+          const email = recipient.email?.trim().toLowerCase();
+          if (!email) {
+            return null;
+          }
+          return {
+            change_order_id: inserted.id,
+            email,
+            name: recipient.name?.trim() || null,
+          };
+        })
+        .filter(Boolean) as Array<{ change_order_id: string; email: string; name: string | null }>;
 
       if (recipientRows.length > 0) {
         const { error: recipientsError } = await supabase
