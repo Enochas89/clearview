@@ -4,9 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const APP_URL = normalizeBaseUrl(Deno.env.get("APP_URL") ?? "");
-const CHANGE_ORDER_RESPONSE_BASE_URL = normalizeBaseUrl(
-  Deno.env.get("CHANGE_ORDER_RESPONSE_BASE_URL") ?? APP_URL,
-);
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("EMAIL_FROM");
 
@@ -142,12 +139,8 @@ const renderPlainLineItems = (raw: unknown): string => {
 };
 
 const buildActionUrl = (token: string, action: string) => {
-  const base = CHANGE_ORDER_RESPONSE_BASE_URL || APP_URL;
-  if (!base) return "";
-  const url = new URL(base);
-  if (url.pathname === "/" || url.pathname === "") {
-    url.pathname = "/change-order/respond";
-  }
+  if (!APP_URL) return "";
+  const url = new URL("/change-order/respond", APP_URL);
   url.searchParams.set("token", token);
   url.searchParams.set("action", action);
   return url.toString();
