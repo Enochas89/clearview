@@ -1,11 +1,11 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_URL = normalizeBaseUrl(Deno.env.get("SUPABASE_URL") ?? "");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const APP_URL = normalizeBaseUrl(Deno.env.get("APP_URL") ?? "");
-const CHANGE_ORDER_RESPONSE_BASE_URL = normalizeBaseUrl(
-  Deno.env.get("CHANGE_ORDER_RESPONSE_BASE_URL") ?? APP_URL,
+const CONFIGURED_RESPONSE_BASE = normalizeBaseUrl(
+  Deno.env.get("CHANGE_ORDER_RESPONSE_BASE_URL") ?? "",
 );
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("EMAIL_FROM");
@@ -142,11 +142,16 @@ const renderPlainLineItems = (raw: unknown): string => {
 };
 
 const buildActionUrl = (token: string, action: string) => {
-  const base = CHANGE_ORDER_RESPONSE_BASE_URL || APP_URL;
-  if (!base) return "";
-  const url = new URL(base);
-  if (url.pathname === "/" || url.pathname === "") {
-    url.pathname = "/change-order/respond";
+  const responseBase =
+    CONFIGURED_RESPONSE_BASE ||
+    (SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/change-order-respond` : "") ||
+    APP_URL;
+
+  if (!responseBase) return "";
+
+  const url = new URL(responseBase);
+  if (!url.pathname || url.pathname === "/") {
+    url.pathname = "/functions/v1/change-order-respond";
   }
   url.searchParams.set("token", token);
   url.searchParams.set("action", action);
