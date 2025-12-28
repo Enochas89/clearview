@@ -44,12 +44,13 @@ const corsHeaders = {
 };
 
 const htmlResponse = (html: string, status = 200) => {
-  const headers = new Headers();
-  headers.set("content-type", "text/html; charset=utf-8");
-  headers.set("cache-control", "no-store");
-  headers.set("x-content-type-options", "nosniff");
+  const headers = new Headers({
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
   Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
-  const body = new TextEncoder().encode(html);
+  const body = new Blob([html], { type: "text/html" });
   return new Response(body, { status, headers });
 };
 
@@ -281,13 +282,11 @@ serve(async (req) => {
   const preselectedAction = (url.searchParams.get("action") ?? "").trim() as ActionKey | "";
 
   if (!token) {
-    return isHtmlPreferred
-      ? renderHtmlResponse({
-          title: "Invalid Response Link",
-          message: "The response link is missing required information.",
-          status: 400,
-        })
-      : jsonResponse({ error: "Invalid token." }, 400);
+    return renderHtmlResponse({
+      title: "Invalid Response Link",
+      message: "The response link is missing required information.",
+      status: 400,
+    });
   }
 
   const { data: recipient, error } = await supabase
@@ -298,23 +297,19 @@ serve(async (req) => {
 
   if (error || !recipient) {
     console.error("Unable to locate recipient for response token:", error);
-    return isHtmlPreferred
-      ? renderHtmlResponse({
-          title: "Response Not Found",
-          message:
-            "We could not find a pending change order response for this link. The link may have already been used.",
-          status: 404,
-        })
-      : jsonResponse({ error: "Recipient not found for token." }, 404);
+    return renderHtmlResponse({
+      title: "Response Not Found",
+      message:
+        "We could not find a pending change order response for this link. The link may have already been used.",
+      status: 404,
+    });
   }
 
   if (recipient.status !== "pending") {
-    return isHtmlPreferred
-      ? renderHtmlResponse({
-          title: "Already Responded",
-          message: "This change order has already been responded to. No further action is required.",
-        })
-      : jsonResponse({ message: "Recipient already responded.", status: "noop" });
+    return renderHtmlResponse({
+      title: "Already Responded",
+      message: "This change order has already been responded to. No further action is required.",
+    });
   }
 
   if (method === "GET") {
