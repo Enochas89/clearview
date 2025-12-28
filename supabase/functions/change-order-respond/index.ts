@@ -68,10 +68,10 @@ const renderHtmlResponse = (options: {
       </main>
     </body>
     </html>`;
-  const resp = new Response(html, { status: options.status ?? 200 });
-  resp.headers.set("Content-Type", "text/html; charset=utf-8");
-  Object.entries(corsHeaders).forEach(([key, value]) => resp.headers.set(key, value));
-  return resp;
+  return new Response(html, {
+    status: options.status ?? 200,
+    headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+  });
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -313,10 +313,10 @@ serve(async (req) => {
   if (method === "GET") {
     const recipientLabel = recipient.name || recipient.email || "Recipient";
     const html = renderForm({ token, preselectedAction, recipientLabel });
-    const resp = new Response(html, { status: 200 });
-    resp.headers.set("Content-Type", "text/html; charset=utf-8");
-    Object.entries(corsHeaders).forEach(([key, value]) => resp.headers.set(key, value));
-    return resp;
+    return new Response(html, {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+    });
   }
 
   let action = preselectedAction;
