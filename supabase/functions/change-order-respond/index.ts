@@ -43,6 +43,17 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
+const htmlResponse = (html: string, status = 200) => {
+  const headers = new Headers({
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    Vary: "Accept",
+  });
+  Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+  return new Response(html, { status, headers });
+};
+
 const renderHtmlResponse = (options: {
   title: string;
   message: string;
@@ -68,12 +79,7 @@ const renderHtmlResponse = (options: {
       </main>
     </body>
     </html>`;
-  const headers = new Headers();
-  headers.set("Content-Type", "text/html; charset=utf-8");
-  headers.set("Cache-Control", "no-store");
-  headers.set("X-Content-Type-Options", "nosniff");
-  Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
-  return new Response(html, { status: options.status ?? 200, headers });
+  return htmlResponse(html, options.status ?? 200);
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -315,12 +321,7 @@ serve(async (req) => {
   if (method === "GET") {
     const recipientLabel = recipient.name || recipient.email || "Recipient";
     const html = renderForm({ token, preselectedAction, recipientLabel });
-    const headers = new Headers();
-    headers.set("Content-Type", "text/html; charset=utf-8");
-    headers.set("Cache-Control", "no-store");
-    headers.set("X-Content-Type-Options", "nosniff");
-    Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
-    return new Response(html, { status: 200, headers });
+    return htmlResponse(html, 200);
   }
 
   let action = preselectedAction;
