@@ -6,6 +6,9 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const APP_URL = Deno.env.get("APP_URL") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("EMAIL_FROM");
+const RESPONSE_BASE_URL =
+  Deno.env.get("CHANGE_ORDER_RESPOND_BASE_URL") ??
+  (SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1` : APP_URL);
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("Missing Supabase service role configuration for edge function.");
@@ -132,9 +135,12 @@ const renderPlainLineItems = (raw: unknown): string => {
 };
 
 const buildActionUrl = (token: string, action: string) => {
-  if (!APP_URL) return "";
-  const base = /^https?:\/\//i.test(APP_URL) ? APP_URL : `https://${APP_URL}`;
-  const url = new URL("/change-order/respond", base);
+  if (!RESPONSE_BASE_URL) return "";
+  const base = /^https?:\/\//i.test(RESPONSE_BASE_URL)
+    ? RESPONSE_BASE_URL
+    : `https://${RESPONSE_BASE_URL}`;
+  const normalized = base.endsWith("/") ? base : `${base}/`;
+  const url = new URL("change-order-respond", normalized);
   url.searchParams.set("token", token);
   url.searchParams.set("action", action);
   return url.toString();
