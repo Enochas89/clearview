@@ -313,8 +313,10 @@ serve(async (req) => {
   if (method === "GET") {
     const recipientLabel = recipient.name || recipient.email || "Recipient";
     const html = renderForm({ token, preselectedAction, recipientLabel });
-    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-    return Response.redirect(dataUrl, 302);
+    const resp = new Response(html, { status: 200 });
+    resp.headers.set("Content-Type", "text/html; charset=utf-8");
+    Object.entries(corsHeaders).forEach(([key, value]) => resp.headers.set(key, value));
+    return resp;
   }
 
   let action = preselectedAction;
