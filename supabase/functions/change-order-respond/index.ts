@@ -69,7 +69,9 @@ const renderHtmlResponse = (options: {
     </body>
     </html>`;
   const headers = new Headers();
-  headers.set("content-type", "text/html; charset=utf-8");
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set("Cache-Control", "no-store");
+  headers.set("X-Content-Type-Options", "nosniff");
   Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
   return new Response(html, { status: options.status ?? 200, headers });
 };
@@ -314,7 +316,9 @@ serve(async (req) => {
     const recipientLabel = recipient.name || recipient.email || "Recipient";
     const html = renderForm({ token, preselectedAction, recipientLabel });
     const headers = new Headers();
-    headers.set("content-type", "text/html; charset=utf-8");
+    headers.set("Content-Type", "text/html; charset=utf-8");
+    headers.set("Cache-Control", "no-store");
+    headers.set("X-Content-Type-Options", "nosniff");
     Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
     return new Response(html, { status: 200, headers });
   }
