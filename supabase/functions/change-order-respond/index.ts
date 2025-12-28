@@ -44,14 +44,13 @@ const corsHeaders = {
 };
 
 const htmlResponse = (html: string, status = 200) => {
-  const headers = new Headers({
-    "Content-Type": "text/html; charset=utf-8",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-    Vary: "Accept",
-  });
+  const headers = new Headers();
+  headers.set("content-type", "text/html; charset=utf-8");
+  headers.set("cache-control", "no-store");
+  headers.set("x-content-type-options", "nosniff");
   Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
-  return new Response(html, { status, headers });
+  const body = new TextEncoder().encode(html);
+  return new Response(body, { status, headers });
 };
 
 const renderHtmlResponse = (options: {
