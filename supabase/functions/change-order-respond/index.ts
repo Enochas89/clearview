@@ -47,9 +47,8 @@ const renderHtmlResponse = (options: {
   title: string;
   message: string;
   status?: number;
-}) =>
-  new Response(
-    `<!doctype html>
+}) => {
+  const html = `<!doctype html>
     <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -68,12 +67,12 @@ const renderHtmlResponse = (options: {
         <p>${options.message}</p>
       </main>
     </body>
-    </html>`,
-    {
-      status: options.status ?? 200,
-      headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders },
-    },
-  );
+    </html>`;
+  const resp = new Response(html, { status: options.status ?? 200 });
+  resp.headers.set("Content-Type", "text/html; charset=utf-8");
+  Object.entries(corsHeaders).forEach(([key, value]) => resp.headers.set(key, value));
+  return resp;
+};
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -313,10 +312,9 @@ serve(async (req) => {
 
   if (method === "GET") {
     const recipientLabel = recipient.name || recipient.email || "Recipient";
-    return new Response(renderForm({ token, preselectedAction, recipientLabel }), {
-      status: 200,
-      headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders },
-    });
+    const html = renderForm({ token, preselectedAction, recipientLabel });
+    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+    return Response.redirect(dataUrl, 302);
   }
 
   let action = preselectedAction;
@@ -436,6 +434,6 @@ serve(async (req) => {
       : "Thanks! The project team has been notified that you need more information.";
 
   return isHtmlPreferred
-    ? jsonResponse({ message: successMessage, status: nextStatus })
+    ? renderHtmlResponse({ title: "Response submitted", message: successMessage })
     : jsonResponse({ message: successMessage, status: nextStatus });
 });
