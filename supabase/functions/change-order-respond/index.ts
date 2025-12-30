@@ -63,7 +63,9 @@ const htmlResponse = (html: string, status = 200) => {
       "sandbox allow-forms allow-same-origin allow-scripts allow-popups allow-top-navigation-by-user-activation",
     ].join("; "),
   });
-  return new Response(html, { status, headers });
+  // Force content-type by using a Blob payload (avoids platform defaults on string bodies).
+  const body = new Blob([html], { type: "text/html" });
+  return new Response(body, { status, headers });
 };
 
 const renderHtmlResponse = (options: {
