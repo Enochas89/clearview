@@ -45,14 +45,13 @@ const corsHeaders = {
 
 const htmlResponse = (html: string, status = 200) => {
   // Ensure the browser renders the markup instead of showing it as plain text,
-  // and override the default sandbox/CSP headers applied by the platform.
-  const res = new Response(html, { status });
-  const securityHeaders: Record<string, string> = {
+  // and explicitly override the platform defaults.
+  const headers = new Headers({
     ...corsHeaders,
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
-    // Allow our simple, inline-only document and POST back to this origin.
+    "Referrer-Policy": "no-referrer",
     "Content-Security-Policy": [
       "default-src 'self'",
       "style-src 'self' 'unsafe-inline'",
@@ -63,10 +62,8 @@ const htmlResponse = (html: string, status = 200) => {
       "frame-ancestors *",
       "sandbox allow-forms allow-same-origin allow-scripts allow-popups allow-top-navigation-by-user-activation",
     ].join("; "),
-    "Referrer-Policy": "no-referrer",
-  };
-  Object.entries(securityHeaders).forEach(([key, value]) => res.headers.set(key, value));
-  return res;
+  });
+  return new Response(html, { status, headers });
 };
 
 const renderHtmlResponse = (options: {
