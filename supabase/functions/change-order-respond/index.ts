@@ -44,14 +44,14 @@ const corsHeaders = {
 };
 
 const htmlResponse = (html: string, status = 200) => {
+  // Ensure the browser renders the markup instead of showing it as plain text.
   const headers = new Headers({
+    ...corsHeaders,
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
   });
-  Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
-  const body = new Blob([html], { type: "text/html" });
-  return new Response(body, { status, headers });
+  return new Response(html, { status, headers });
 };
 
 const renderHtmlResponse = (options: {
