@@ -71,25 +71,17 @@ const renderHtmlResponse = (options: {
   status?: number;
 }) => {
   const html = `<!doctype html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <title>${options.title}</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <style>
-        body { font-family: Arial, sans-serif; padding: 40px; background: #f9fafb; color: #111827; }
-        main { max-width: 520px; margin: 0 auto; background: #fff; padding: 32px; border-radius: 12px; box-shadow: 0 20px 25px -15px rgba(15, 23, 42, 0.3); }
-        h1 { font-size: 28px; margin-bottom: 16px; }
-        p { font-size: 16px; line-height: 1.6; }
-      </style>
-    </head>
-    <body>
-      <main>
-        <h1>${options.title}</h1>
-        <p>${options.message}</p>
-      </main>
-    </body>
-    </html>`;
+  <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>${options.title}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <h1>${options.title}</h1>
+    <p>${options.message}</p>
+  </body>
+  </html>`;
   return htmlResponse(html, options.status ?? 200);
 };
 
@@ -134,148 +126,28 @@ const renderForm = ({
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Respond to change order</title>
-    <style>
-      :root { color-scheme: light; }
-      body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
-      .shell { max-width: 640px; margin: 32px auto; background: #fff; padding: 28px; border-radius: 16px; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12); }
-      h1 { margin: 0 0 12px; font-size: 24px; }
-      p { margin: 0 0 16px; line-height: 1.5; }
-      .field { margin-bottom: 18px; }
-      .label { display: block; font-weight: 600; margin-bottom: 8px; }
-      .options { display: grid; gap: 10px; }
-      .option { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 10px; }
-      textarea { width: 100%; min-height: 96px; padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; font-family: inherit; font-size: 14px; }
-      canvas { width: 100%; max-width: 100%; height: 160px; border: 1px dashed #cbd5e1; border-radius: 10px; background: #f8fafc; }
-      .sig-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; color: #475569; }
-      button[type="submit"] { width: 100%; padding: 14px 16px; font-weight: 700; border: none; border-radius: 999px; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; cursor: pointer; }
-      button[type="button"] { padding: 8px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; }
-      .note { font-size: 13px; color: #475569; }
-      .error { color: #b91c1c; margin-bottom: 12px; }
-      .success { color: #0f766e; margin-bottom: 12px; }
-    </style>
   </head>
   <body>
-    <div class="shell">
-      <h1>Respond to change order</h1>
-      <p>for ${recipientLabel}</p>
-      <div id="message"></div>
-      <form id="response-form">
-        <input type="hidden" name="token" value="${token}" />
-        <div class="field">
-          <span class="label">Choose a response</span>
-          <div class="options">
-            <label class="option"><input type="radio" name="action" value="approve" ${checked(
-              "approve",
-            )} /> Approve</label>
-            <label class="option"><input type="radio" name="action" value="approve_conditions" ${checked(
-              "approve_conditions",
-            )} /> Approve with conditions</label>
-            <label class="option"><input type="radio" name="action" value="deny" ${checked(
-              "deny",
-            )} /> Deny</label>
-            <label class="option"><input type="radio" name="action" value="needs_info" ${checked(
-              "needs_info",
-            )} /> Needs more information</label>
-          </div>
-        </div>
-        <div class="field">
-          <label class="label" for="note">Add a note (optional)</label>
-          <textarea id="note" name="note" placeholder="Add context or conditions"></textarea>
-        </div>
-        <div class="field">
-          <span class="label">Signature (optional)</span>
-          <canvas id="sig-pad"></canvas>
-          <div class="sig-actions">
-            <span>Draw with your mouse or finger.</span>
-            <button type="button" id="clear-sig">Clear</button>
-          </div>
-        </div>
-        <button type="submit">Submit response</button>
-        <p class="note">Your response is recorded securely.</p>
-      </form>
-    </div>
-    <script>
-      (function() {
-        const canvas = document.getElementById("sig-pad");
-        const clearBtn = document.getElementById("clear-sig");
-        const form = document.getElementById("response-form");
-        const messageBox = document.getElementById("message");
-        const ctx = canvas.getContext("2d");
-        let drawing = false;
-
-        const resize = () => {
-          const data = canvas.toDataURL();
-          const { width } = canvas.getBoundingClientRect();
-          canvas.width = width;
-          canvas.height = 160;
-          ctx.lineWidth = 2;
-          ctx.lineCap = "round";
-          ctx.strokeStyle = "#0f172a";
-          if (data) {
-            const img = new Image();
-            img.onload = () => ctx.drawImage(img, 0, 0);
-            img.src = data;
-          }
-        };
-        window.addEventListener("resize", resize);
-        resize();
-
-        const getPoint = (e) => {
-          if (e.touches?.length) {
-            const rect = canvas.getBoundingClientRect();
-            return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-          }
-          return { x: e.offsetX, y: e.offsetY };
-        };
-
-        const start = (e) => { drawing = true; const { x, y } = getPoint(e); ctx.beginPath(); ctx.moveTo(x, y); };
-        const move = (e) => { if (!drawing) return; const { x, y } = getPoint(e); ctx.lineTo(x, y); ctx.stroke(); };
-        const end = () => { drawing = false; };
-
-        canvas.addEventListener("mousedown", start);
-        canvas.addEventListener("mousemove", move);
-        canvas.addEventListener("mouseup", end);
-        canvas.addEventListener("mouseout", end);
-        canvas.addEventListener("touchstart", (e) => { start(e); e.preventDefault(); }, { passive: false });
-        canvas.addEventListener("touchmove", (e) => { move(e); e.preventDefault(); }, { passive: false });
-        canvas.addEventListener("touchend", end);
-
-        clearBtn.addEventListener("click", () => { ctx.clearRect(0, 0, canvas.width, canvas.height); });
-
-        const setMessage = (text, type) => {
-          messageBox.innerHTML = text ? '<p class="' + type + '">' + text + "</p>" : "";
-        };
-
-        form.addEventListener("submit", async (e) => {
-          e.preventDefault();
-          setMessage("Submitting...", "note");
-          const formData = new FormData(form);
-          const payload = {
-            token: formData.get("token"),
-            action: formData.get("action"),
-            note: formData.get("note"),
-            signature: canvas.toDataURL("image/png"),
-          };
-          try {
-            const res = await fetch(window.location.href.split("?")[0], {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            });
-            const contentType = res.headers.get("content-type") || "";
-            if (!res.ok) {
-              const text = contentType.includes("application/json") ? (await res.json())?.error : await res.text();
-              throw new Error(text || "Failed to submit response.");
-            }
-            const text = contentType.includes("application/json") ? (await res.json())?.message : await res.text();
-            setMessage(text || "Response submitted.", "success");
-            form.style.display = "none";
-          } catch (err) {
-            setMessage(err?.message || "Unable to submit response. Please try again.", "error");
-          }
-        });
-      })();
-    </script>
+    <h1>Respond to change order</h1>
+    <p>for ${recipientLabel}</p>
+    <form method="POST" action="">
+      <input type="hidden" name="token" value="${token}" />
+      <fieldset>
+        <legend>Choose a response</legend>
+        <label><input type="radio" name="action" value="approve" ${checked("approve")} /> Approve</label><br />
+        <label><input type="radio" name="action" value="approve_conditions" ${checked(
+          "approve_conditions",
+        )} /> Approve with conditions</label><br />
+        <label><input type="radio" name="action" value="deny" ${checked("deny")} /> Deny</label><br />
+        <label><input type="radio" name="action" value="needs_info" ${checked("needs_info")} /> Needs more information</label>
+      </fieldset>
+      <p>
+        <label for="note">Add a note (optional)</label><br />
+        <textarea id="note" name="note" rows="4" cols="40"></textarea>
+      </p>
+      <button type="submit">Submit response</button>
+      <p>Your response is recorded securely.</p>
+    </form>
   </body>
   </html>`;
 };
