@@ -43,6 +43,16 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
+const CSP_HEADER_VALUE = [
+  "default-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "font-src 'self'",
+  "frame-ancestors *",
+].join("; ");
+
 const htmlResponse = (html: string, status = 200) => {
   // Ensure the browser renders the markup instead of showing it as plain text.
   const headers = new Headers({
@@ -50,6 +60,7 @@ const htmlResponse = (html: string, status = 200) => {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": CSP_HEADER_VALUE,
   });
   return new Response(html, { status, headers });
 };
