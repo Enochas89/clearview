@@ -7,8 +7,12 @@ const APP_URL = Deno.env.get("APP_URL") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("EMAIL_FROM");
 const RESPONSE_BASE_URL =
-  Deno.env.get("CHANGE_ORDER_RESPOND_BASE_URL") ??
-  (SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1` : APP_URL);
+  Deno.env.get("CHANGE_ORDER_RESPOND_BASE_URL") ||
+  APP_URL ||
+  (SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1` : "");
+
+// Default route for the public response page when no explicit override is provided.
+const RESPONSE_ROUTE = "change-order/respond";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("Missing Supabase service role configuration for edge function.");
@@ -139,8 +143,13 @@ const buildActionUrl = (token: string, action: string) => {
   const base = /^https?:\/\//i.test(RESPONSE_BASE_URL)
     ? RESPONSE_BASE_URL
     : `https://${RESPONSE_BASE_URL}`;
-  const normalized = base.endsWith("/") ? base : `${base}/`;
-  const url = new URL("change-order-respond", normalized);
+  const url = new URL(base);
+  const isFunctionsHost = url.pathname.includes("/functions");
+  const responsePath = isFunctionsHost ? "change-order-respond" : RESPONSE_ROUTE;
+  const normalizedBase = url.pathname.replace(/\/$/, "");
+  const alreadyIncludesPath =
+    normalizedBase.endsWith(`/${responsePath}`) || normalizedBase === `/${responsePath}`;
+  url.pathname = alreadyIncludesPath ? normalizedBase : `${normalizedBase}/${responsePath}`;
   url.searchParams.set("token", token);
   url.searchParams.set("action", action);
   return url.toString();
