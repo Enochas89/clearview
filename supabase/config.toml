@@ -1,5 +1,1 @@
-[functions.change-order-respond]
-verify_jwt = false
 
-[functions.send-change-order-email]
-verify_jwt = false

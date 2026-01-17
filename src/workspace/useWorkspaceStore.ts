@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChangeOrder,
   ChangeOrderLineItem,
-  ChangeOrderRecipientStatus,
   ChangeOrderStatus,
   DayActivity,
   DayEntry,
@@ -60,34 +59,6 @@ type TaskRow = {
   dependencies: string[] | null;
 };
 
-type ChangeOrderRow = {
-  id: string;
-  project_id: string;
-  subject: string | null;
-  body: string | null;
-  recipient_name: string | null;
-  recipient_email: string | null;
-  status: string | null;
-  sent_at: string | null;
-  updated_at: string | null;
-  response_at: string | null;
-  response_message: string | null;
-  created_by: string | null;
-  created_by_name: string | null;
-  responded_by: string | null;
-  responded_by_name: string | null;
-  created_at: string | null;
-  line_items: any;
-  change_order_recipients?: Array<{
-    id: string;
-    email: string;
-    name: string | null;
-    status: string | null;
-    condition_note: string | null;
-    responded_at: string | null;
-  }>;
-};
-
 type ProjectMemberRow = {
   id: string;
   project_id: string;
@@ -99,40 +70,6 @@ type ProjectMemberRow = {
   invited_at: string | null;
   accepted_at: string | null;
   full_name: string | null;
-};
-
-const normalizeChangeOrderStatus = (status: string | null): ChangeOrderStatus => {
-  switch (status) {
-    case "approved":
-    case "approved_with_conditions":
-    case "denied":
-    case "needs_info":
-      return status;
-    case "needs-info":
-      return "needs_info";
-    case "approved-with-conditions":
-      return "approved_with_conditions";
-    default:
-      return "pending";
-  }
-};
-
-const normalizeRecipientStatus = (
-  status: string | null,
-): ChangeOrderRecipientStatus => {
-  switch (status) {
-    case "approved":
-    case "approved_with_conditions":
-    case "denied":
-    case "needs_info":
-      return status;
-    case "needs-info":
-      return "needs_info";
-    case "approved-with-conditions":
-      return "approved_with_conditions";
-    default:
-      return "pending";
-  }
 };
 
 const mapProjectFromRow = (row: ProjectRow): Project => ({
@@ -207,38 +144,6 @@ const mapTaskUpdateToRow = (input: Partial<Task>) => ({
   ...(input.dueDate !== undefined ? { due_date: input.dueDate } : {}),
   ...(input.status !== undefined ? { status: input.status } : {}),
   ...(input.dependencies !== undefined ? { dependencies: input.dependencies } : {}),
-});
-
-const mapChangeOrderFromRow = (row: ChangeOrderRow): ChangeOrder => ({
-  id: row.id,
-  projectId: row.project_id,
-  subject: row.subject ?? "",
-  description: row.body ?? "",
-  recipientName: row.recipient_name ?? "",
-  recipientEmail: row.recipient_email ?? "",
-  status: normalizeChangeOrderStatus(row.status),
-  sentAt: row.sent_at ?? "",
-  updatedAt: row.updated_at ?? "",
-  responseAt: row.response_at ?? "",
-  responseMessage: row.response_message ?? "",
-  createdBy: row.created_by ?? "",
-  createdByName: row.created_by_name ?? "",
-  respondedBy: row.responded_by ?? "",
-  respondedByName: row.responded_by_name ?? "",
-  createdAt: row.created_at ?? "",
-  lineItems: Array.isArray(row.line_items)
-    ? row.line_items
-    : typeof row.line_items === "string"
-    ? JSON.parse(row.line_items)
-    : [],
-  recipients: (row.change_order_recipients ?? []).map((recipient) => ({
-    id: recipient.id,
-    email: recipient.email,
-    name: recipient.name ?? "",
-    status: normalizeRecipientStatus(recipient.status ?? null),
-    conditionNote: recipient.condition_note ?? "",
-    respondedAt: recipient.responded_at ?? "",
-  })),
 });
 
 const mapMemberFromRow = (row: ProjectMemberRow): ProjectMember => ({
@@ -535,18 +440,6 @@ const fetchProjectDayEntries = async (session: Session, projectId: string): Prom
     .map(([, entry]) => entry);
 };
 
-const fetchChangeOrders = async (projectId: string): Promise<ChangeOrder[]> => {
-  const { data, error } = await supabase
-    .from("change_orders")
-    .select(
-      "id, project_id, subject, body, recipient_name, recipient_email, status, sent_at, updated_at, response_at, response_message, created_by, created_by_name, responded_by, responded_by_name, created_at, line_items, change_order_recipients(id, change_order_id, email, name, status, condition_note, responded_at)",
-    )
-    .eq("project_id", projectId)
-    .order("sent_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((row) => mapChangeOrderFromRow(row as ChangeOrderRow));
-};
-
 const fetchProjectMembers = async (projectId: string): Promise<ProjectMember[]> => {
   const { data, error } = await supabase
     .from("project_members")
@@ -557,14 +450,6 @@ const fetchProjectMembers = async (projectId: string): Promise<ProjectMember[]> 
     .order("invited_at", { ascending: true });
   if (error) throw error;
   return (data ?? []).map((row) => mapMemberFromRow(row as ProjectMemberRow));
-};
-
-const notifyChangeOrder = async (input: { changeOrderId: string; event: "created" | "status"; status?: ChangeOrderStatus }) => {
-  try {
-    await supabase.functions.invoke("send-change-order-email", { body: input });
-  } catch (error) {
-    console.error("Error sending change order notification:", error);
-  }
 };
 
 const uploadDayFile = async (
@@ -743,21 +628,6 @@ export const useWorkspaceStore = ({
     }
   }, [dayEntriesQuery.isError, dayEntriesQuery.error, notifyError]);
 
-  const changeOrdersQuery = useQuery({
-    queryKey: ["workspace", "changeOrders", selectedProjectId],
-    queryFn: () => fetchChangeOrders(selectedProjectId!),
-    enabled: Boolean(selectedProjectId),
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-    retry: 1,
-  });
-
-  useEffect(() => {
-    if (changeOrdersQuery.isError) {
-      notifyError(extractErrorMessage(changeOrdersQuery.error, "Failed to load change orders."));
-    }
-  }, [changeOrdersQuery.isError, changeOrdersQuery.error, notifyError]);
-
   const projectMembersQuery = useQuery({
     queryKey: ["workspace", "members", selectedProjectId],
     queryFn: () => fetchProjectMembers(selectedProjectId!),
@@ -803,7 +673,7 @@ export const useWorkspaceStore = ({
     return entries;
   }, [queryClient, dayEntriesQuery.data, session.user.id]);
 
-  const changeOrders = changeOrdersQuery.data ?? [];
+  const changeOrders: ChangeOrder[] = [];
   const projectMembers = projectMembersQuery.data ?? [];
 
   const upcomingDueTasks = useMemo<TaskReminder[]>(() => {
@@ -900,7 +770,7 @@ export const useWorkspaceStore = ({
   const loading =
     projectsQuery.isPending ||
     (Boolean(selectedProjectId) &&
-      (dayEntriesQuery.isPending || changeOrdersQuery.isPending || projectMembersQuery.isPending));
+      (dayEntriesQuery.isPending || projectMembersQuery.isPending));
 
   const invalidateProjects = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["workspace", "projects", session.user.id] });
@@ -914,14 +784,6 @@ export const useWorkspaceStore = ({
       });
     },
     [queryClient, session.user.id],
-  );
-
-  const invalidateChangeOrders = useCallback(
-    (projectId: string | null) => {
-      if (!projectId) return;
-      queryClient.invalidateQueries({ queryKey: ["workspace", "changeOrders", projectId] });
-    },
-    [queryClient],
   );
 
   const invalidateMembers = useCallback(
@@ -1001,7 +863,6 @@ export const useWorkspaceStore = ({
       notifySuccess("Project deleted.");
       invalidateProjects();
       invalidateDayEntries(projectId);
-      invalidateChangeOrders(projectId);
       invalidateMembers(projectId);
     },
     onError: (error) => {
@@ -1222,176 +1083,9 @@ export const useWorkspaceStore = ({
     },
   });
 
-  const createChangeOrderMutation = useMutation({
-    mutationFn: async ({
-      projectId,
-      input,
-    }: {
-      projectId: string;
-      input: {
-        subject: string;
-        description: string;
-        recipientName: string;
-        recipientEmail: string;
-        lineItems: ChangeOrderLineItem[];
-        recipients: Array<{ email: string; name?: string | null }>;
-      };
-    }) => {
-      const nowIso = new Date().toISOString();
-      const { data, error: insertError } = await supabase
-        .from("change_orders")
-        .insert([
-          {
-            id: createId("change"),
-            project_id: projectId,
-            subject: input.subject.trim(),
-            body: input.description.trim(),
-            recipient_name: input.recipientName.trim() || null,
-            recipient_email: input.recipientEmail.trim(),
-            status: "pending",
-            sent_at: nowIso,
-            updated_at: nowIso,
-            response_at: null,
-            response_message: null,
-            created_by: session.user.id ?? null,
-            created_by_name: session.user.user_metadata?.full_name ?? session.user.email ?? null,
-            responded_by: null,
-            responded_by_name: null,
-            line_items: JSON.stringify(input.lineItems ?? []),
-          },
-        ])
-        .select(
-          "id, project_id, subject, body, recipient_name, recipient_email, status, sent_at, updated_at, response_at, response_message, created_by, created_by_name, responded_by, responded_by_name, created_at, line_items",
-        )
-        .single();
-
-      if (insertError) throw insertError;
-
-      const inserted = data as ChangeOrderRow;
-
-      const recipientRows: Array<{
-        change_order_id: string;
-        email: string;
-        name: string | null;
-        response_token: string;
-      }> = [];
-      const addRecipient = (email?: string | null, name?: string | null) => {
-        const cleaned = email?.trim().toLowerCase();
-        if (!cleaned) return;
-        if (recipientRows.some((row) => row.email === cleaned)) return;
-        recipientRows.push({
-          change_order_id: inserted.id,
-          email: cleaned,
-          name: name?.trim() || null,
-          response_token: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : createId("resp"),
-        });
-      };
-
-      addRecipient(input.recipientEmail, input.recipientName);
-      (input.recipients ?? []).forEach((recipient) => addRecipient(recipient.email, recipient.name));
-
-      if (recipientRows.length > 0) {
-        const { error: recipientsError } = await supabase
-          .from("change_order_recipients")
-          .insert(recipientRows);
-        if (recipientsError) {
-          throw recipientsError;
-        }
-      }
-
-      await notifyChangeOrder({ changeOrderId: inserted.id, event: "created" });
-      return projectId;
-    },
-    onSuccess: (projectId) => {
-      notifySuccess("Change order sent.");
-      invalidateChangeOrders(projectId);
-    },
-    onError: (error) => {
-      notifyError(extractErrorMessage(error, "Failed to create change order."));
-    },
-  });
-
-  const deleteChangeOrderMutation = useMutation({
-    mutationFn: async ({ projectId, orderId }: { projectId: string; orderId: string }) => {
-      const { error: deleteError } = await supabase
-        .from("change_orders")
-        .delete()
-        .eq("id", orderId);
-
-      if (deleteError) throw deleteError;
-
-      return projectId;
-    },
-    onSuccess: (projectId) => {
-      notifySuccess("Change order deleted.");
-      invalidateChangeOrders(projectId);
-    },
-    onError: (error) => {
-      notifyError(extractErrorMessage(error, "Failed to delete change order."));
-    },
-  });
-
-  const changeOrderStatusMutation = useMutation({
-    mutationFn: async ({
-      projectId,
-      orderId,
-      status,
-      responseMessage,
-    }: {
-      projectId: string;
-      orderId: string;
-      status: ChangeOrderStatus;
-      responseMessage?: string | null;
-    }) => {
-      const nowIso = new Date().toISOString();
-      const payload: Record<string, string | null> = {
-        status,
-        updated_at: nowIso,
-        response_message: responseMessage ?? null,
-        response_at: status === "pending" ? null : nowIso,
-        responded_by: status === "pending" ? null : session.user.id ?? null,
-        responded_by_name:
-          status === "pending"
-            ? null
-            : session.user.user_metadata?.full_name ?? session.user.email ?? null,
-      };
-
-      const { data, error: updateError } = await supabase
-        .from("change_orders")
-        .update(payload)
-        .eq("id", orderId)
-        .select(
-          "id, project_id, subject, body, recipient_name, recipient_email, status, sent_at, updated_at, response_at, response_message, created_by, created_by_name, responded_by, responded_by_name, created_at, line_items",
-        )
-        .single();
-
-      if (updateError) throw updateError;
-
-      const updated = mapChangeOrderFromRow(data as ChangeOrderRow);
-      if (status !== "pending") {
-        await notifyChangeOrder({ changeOrderId: updated.id, event: "status", status });
-      }
-
-      return { projectId, status };
-    },
-    onSuccess: ({ projectId, status }) => {
-      const statusMessage =
-        status === "approved"
-          ? "Change order approved."
-          : status === "approved_with_conditions"
-          ? "Change order approved with conditions."
-          : status === "denied"
-          ? "Change order denied."
-          : status === "needs_info"
-          ? "Requested more information for change order."
-          : "Change order updated.";
-      notifySuccess(statusMessage);
-      invalidateChangeOrders(projectId);
-    },
-    onError: (error) => {
-      notifyError(extractErrorMessage(error, "Failed to update change order status."));
-    },
-  });
+  const notifyChangeOrdersDisabled = useCallback(() => {
+    notifyError("Change order backend is disabled in this build.");
+  }, [notifyError]);
 
   const inviteMemberMutation = useMutation({
     mutationFn: async ({
@@ -1664,28 +1358,25 @@ export const useWorkspaceStore = ({
       }
       await deletePostMutation.mutateAsync({ projectId: selectedProjectId, postId, attachments });
     },
-    handleCreateChangeOrder: async (input) => {
-      if (!selectedProjectId) {
-        throw new Error("No project selected");
-      }
-      await createChangeOrderMutation.mutateAsync({ projectId: selectedProjectId, input });
+    handleCreateChangeOrder: async (_input: {
+      subject: string;
+      description: string;
+      recipientName: string;
+      recipientEmail: string;
+      lineItems: ChangeOrderLineItem[];
+      recipients: Array<{ email: string; name?: string | null }>;
+    }) => {
+      notifyChangeOrdersDisabled();
     },
-    handleDeleteChangeOrder: async (orderId) => {
-      if (!selectedProjectId) {
-        throw new Error("No project selected");
-      }
-      await deleteChangeOrderMutation.mutateAsync({ projectId: selectedProjectId, orderId });
+    handleDeleteChangeOrder: async (_orderId: string) => {
+      notifyChangeOrdersDisabled();
     },
-    handleChangeOrderStatus: async (orderId, status, options) => {
-      if (!selectedProjectId) {
-        throw new Error("No project selected");
-      }
-      await changeOrderStatusMutation.mutateAsync({
-        projectId: selectedProjectId,
-        orderId,
-        status,
-        responseMessage: options?.responseMessage ?? null,
-      });
+    handleChangeOrderStatus: async (
+      _orderId: string,
+      _status: ChangeOrderStatus,
+      _options?: { responseMessage?: string | null },
+    ) => {
+      notifyChangeOrdersDisabled();
     },
     handleUpdateAccount,
     clearAccountFeedback,

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { supabase } from "../../supabaseClient";
 
 type ResponseAction = "approve" | "approve_conditions" | "deny" | "needs_info";
-type ResponseStatus = "pending" | "approved" | "approved_with_conditions" | "denied" | "needs_info";
 
 const ACTIONS: Array<{ value: ResponseAction; label: string }> = [
   { value: "approve", label: "Approve" },
@@ -54,23 +52,8 @@ const ChangeOrderResponsePage = () => {
       .filter(Boolean)
       .join("\n\n");
 
-    try {
-      const { data, error } = await supabase.functions.invoke("change-order-respond", {
-        body: { token, action, note: combinedNote || null },
-      });
-      if (error) {
-        throw error;
-      }
-      const message =
-        data?.message ||
-        (action ? ACTION_SUCCESS_MESSAGE[action] : "Thanks! Your response has been recorded.");
-      setStatusMessage(message);
-    } catch (err: any) {
-      const msg = err?.message ?? "We could not record your response. Please try again.";
-      setErrorMessage(msg);
-    } finally {
-      setIsSubmitting(false);
-    }
+    setErrorMessage("Change order responses are disabled in this build.");
+    setIsSubmitting(false);
   };
 
   if (!token) {
