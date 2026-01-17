@@ -1,1 +1,6 @@
 
+[functions.create-change-order]
+verify_jwt = true
+
+[functions.change-order-respond]
+verify_jwt = false
