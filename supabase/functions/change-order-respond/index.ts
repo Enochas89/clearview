@@ -37,6 +37,15 @@ type ChangeOrderStatus =
   | "denied"
   | "needs_info";
 
+const normalizeAction = (raw: string | null | undefined): ActionKey | null => {
+  const value = (raw ?? "").toString().trim().toLowerCase();
+  if ((Object.keys(ACTION_STATUS_MAP) as string[]).includes(value)) {
+    return value as ActionKey;
+  }
+  const matched = Object.entries(ACTION_STATUS_MAP).find(([, status]) => status === value);
+  return matched ? (matched[0] as ActionKey) : null;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -165,7 +174,7 @@ serve(async (req) => {
 
   const url = new URL(req.url);
   const token = (url.searchParams.get("token") ?? "").trim();
-  const preselectedAction = (url.searchParams.get("action") ?? "").trim() as ActionKey | "";
+  const preselectedAction: ActionKey | "" = normalizeAction(url.searchParams.get("action")) ?? "";
 
   if (!token) {
     return renderHtmlResponse({
@@ -232,8 +241,8 @@ serve(async (req) => {
       : jsonResponse({ error: "Invalid payload" }, 400);
   }
 
-  const trimmedAction = action as ActionKey;
-  if (!(trimmedAction in ACTION_STATUS_MAP)) {
+  const normalizedAction = normalizeAction(action);
+  if (!normalizedAction) {
     return isHtmlPreferred
       ? renderHtmlResponse({
           title: "Invalid Response",
@@ -243,7 +252,7 @@ serve(async (req) => {
       : jsonResponse({ error: "Invalid action." }, 400);
   }
 
-  const nextStatus = ACTION_STATUS_MAP[trimmedAction];
+  const nextStatus = ACTION_STATUS_MAP[normalizedAction];
   const sanitizedNote = note && String(note).trim().length > 0 ? String(note).trim() : null;
   const sanitizedSignature =
     signature && typeof signature === "string" && signature.startsWith("data:image") ? signature : null;
@@ -312,11 +321,11 @@ serve(async (req) => {
   }
 
   const successMessage =
-    trimmedAction === "approve"
+    normalizedAction === "approve"
       ? "Thanks! Your approval has been recorded."
-      : trimmedAction === "approve_conditions"
+      : normalizedAction === "approve_conditions"
       ? "Thanks! We've noted your conditional approval."
-      : trimmedAction === "deny"
+      : normalizedAction === "deny"
       ? "Your denial has been recorded."
       : "Thanks! The project team has been notified that you need more information.";
 

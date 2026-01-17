@@ -2,22 +2,30 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 
+type ResponseAction = "approve" | "approve_conditions" | "deny" | "needs_info";
 type ResponseStatus = "pending" | "approved" | "approved_with_conditions" | "denied" | "needs_info";
 
-const ACTIONS: Array<{ value: ResponseStatus; label: string }> = [
-  { value: "approved", label: "Approve" },
-  { value: "approved_with_conditions", label: "Approve w/ conditions" },
-  { value: "denied", label: "Deny" },
+const ACTIONS: Array<{ value: ResponseAction; label: string }> = [
+  { value: "approve", label: "Approve" },
+  { value: "approve_conditions", label: "Approve w/ conditions" },
+  { value: "deny", label: "Deny" },
   { value: "needs_info", label: "Needs info" },
 ];
+
+const ACTION_SUCCESS_MESSAGE: Record<ResponseAction, string> = {
+  approve: "Thanks! Your approval has been recorded.",
+  approve_conditions: "Thanks! We've noted your conditional approval.",
+  deny: "Your denial has been recorded.",
+  needs_info: "Thanks! The project team has been notified that you need more information.",
+};
 
 const ChangeOrderResponsePage = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
-  const presetAction = searchParams.get("action") ?? "";
+  const presetActionParam = searchParams.get("action") ?? "";
 
-  const [action, setAction] = useState<ResponseStatus | "">(
-    ACTIONS.some((a) => a.value === presetAction) ? (presetAction as ResponseStatus) : "",
+  const [action, setAction] = useState<ResponseAction | "">(
+    ACTIONS.some((a) => a.value === presetActionParam) ? (presetActionParam as ResponseAction) : "",
   );
   const [signature, setSignature] = useState("");
   const [note, setNote] = useState("");
@@ -44,7 +52,7 @@ const ChangeOrderResponsePage = () => {
 
     const combinedNote = [signature.trim() ? `Signed by ${signature.trim()}` : null, note.trim() || null]
       .filter(Boolean)
-      .join(" — ");
+      .join("\n\n");
 
     try {
       const { data, error } = await supabase.functions.invoke("change-order-respond", {
@@ -55,13 +63,7 @@ const ChangeOrderResponsePage = () => {
       }
       const message =
         data?.message ||
-        (action === "approved"
-          ? "Thanks! Your approval has been recorded."
-          : action === "approved_with_conditions"
-          ? "Thanks! We've noted your conditional approval."
-          : action === "denied"
-          ? "Your denial has been recorded."
-          : "Thanks! The project team has been notified that you need more information.");
+        (action ? ACTION_SUCCESS_MESSAGE[action] : "Thanks! Your response has been recorded.");
       setStatusMessage(message);
     } catch (err: any) {
       const msg = err?.message ?? "We could not record your response. Please try again.";
